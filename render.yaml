@@ -1,24 +1,36 @@
-# Render blueprint for the backend. In Render: New > Blueprint > pick this repository.
-# Keys marked "sync: false" are typed into Render's dashboard, never stored in git.
+# Render Blueprint for Aura's FastAPI backend
+
 services:
   - type: web
     name: aura-backend
     runtime: docker
     plan: free
+    region: singapore
+
     rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+
     healthCheckPath: /api/health
+
     envVars:
       - key: LLM_PROVIDER
         value: auto
+
       - key: GEMINI_API_KEY
         sync: false
+
       - key: GROQ_API_KEY
         sync: false
+
       - key: GITHUB_TOKEN
         sync: false
+
       - key: NASA_API_KEY
         value: DEMO_KEY
+
       - key: DATABASE_URL
         sync: false
+
       - key: CORS_ORIGINS
         sync: false
