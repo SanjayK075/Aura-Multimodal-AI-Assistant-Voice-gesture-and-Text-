@@ -47,6 +47,31 @@ def route(text: str, context: dict[str, Any]) -> tuple[str, dict[str, Any]] | No
         # Whole words only (plus a plural), so "issues" doesn't match "iss".
         return any(re.search(rf"\b{re.escape(w)}(?:e?s)?\b", lowered) for w in words)
 
+    # -- air, satellites, memory and search
+    if has("air quality", "aqi", "pollution", "smog"):
+        place = _PLACE.search(text)
+        return "get_air_quality", ({"city": place.group(1).strip()} if place else {})
+    if has("satellite", "starlink", "overhead"):
+        place = _PLACE.search(text)
+        args = {"group": "starlink"} if has("starlink") else ({"group": "stations"} if has("space station") else {})
+        if place:
+            args["city"] = place.group(1).strip()
+        return "get_satellites", args
+    forget = re.match(r"\s*(?:please\s+)?forget\s+(.+)", text, re.IGNORECASE)
+    if forget:
+        what = forget.group(1).strip(" .")
+        if re.match(r"(?:everything|all|it all|all of it)\b", what, re.IGNORECASE):
+            return "forget_memory", {"all": True}
+        return "forget_memory", {"query": re.sub(r"^(?:that|about)\s+", "", what, flags=re.IGNORECASE)}
+    memo = re.match(r"\s*(?:please\s+)?remember(?:\s+that)?\s+(.+)", text, re.IGNORECASE)
+    if memo:
+        return "remember", {"fact": memo.group(1).strip(" .")}
+    if re.search(r"what do you (?:remember|know about me)|my memories|what did i tell you", lowered):
+        return "list_memories", {}
+    search = re.match(r"\s*(?:please\s+)?(?:search(?: the web)?(?: for)?|google|look up)\s+(.+)", text, re.IGNORECASE)
+    if search:
+        return "web_search", {"query": search.group(1).strip(" ?.")}
+
     if has("weather", "forecast", "rain", "raining", "temperature", "hot", "cold", "sunny", "humid"):
         args: dict[str, Any] = {}
         place = _PLACE.search(text)
@@ -55,10 +80,6 @@ def route(text: str, context: dict[str, Any]) -> tuple[str, dict[str, Any]] | No
         if has("week", "weekend", "7 day", "seven"):
             args["days"] = 7
         return "get_weather", args
-    if has("iss", "space station"):
-        return "get_iss_position", {}
-    if has("launch", "launching", "rocket"):
-        return "get_upcoming_launches", {}
     if has("nasa", "apod", "picture of the day", "astronomy", "space"):
         return "get_space_picture", {}
     if has("github", "repo", "repository", "repositories", "issue", "pull request"):
@@ -102,7 +123,10 @@ class DemoProvider:
         messages: list[ChatMessage],
         tools: list[ToolSpec],
         context: dict[str, Any] | None = None,
+        tool_choice: str | None = None,
     ) -> AsyncIterator[LLMEvent]:
+        # tool_choice is accepted for interface compatibility; the planner never asks
+        # the demo router for a plan (it uses its own keyword planner instead).
         context = context or {}
         last = messages[-1] if messages else None
         available = {tool.name for tool in tools}

@@ -9,6 +9,7 @@ from app.tools import news, space, weather
 from app.tools.base import Tool, ToolError, ToolResult, TTLCache, clip, dig
 
 from .conftest import make_ctx, make_settings
+from app import tools as tool_registry
 
 
 async def run(name, args, ctx, cache=None):
@@ -333,64 +334,6 @@ async def test_apod_bad_date_and_demo_key_limit():
         await run("get_space_picture", {}, make_ctx(limited))
 
 
-def test_launch_parsing_handles_both_api_versions():
-    v23 = {
-        "name": "Falcon 9 Block 5 | Starlink",
-        "net": "2026-10-12T03:21:00Z",
-        "status": {"name": "Go for Launch", "abbrev": "Go"},
-        "image": {"image_url": "https://x/full.jpg", "thumbnail_url": "https://x/thumb.jpg"},
-        "launch_service_provider": {"name": "SpaceX"},
-        "rocket": {"configuration": {"name": "Falcon 9", "full_name": "Falcon 9 Block 5"}},
-        "mission": {"name": "Starlink", "description": "Internet satellites.", "orbit": {"name": "Low Earth Orbit"}},
-        "pad": {"name": "SLC-40", "latitude": 28.56, "longitude": -80.57, "location": {"name": "Cape Canaveral"}},
-    }
-    parsed = space.parse_launch(v23)
-    assert parsed["rocket"] == "Falcon 9 Block 5" and parsed["image"] == "https://x/thumb.jpg"
-    assert (parsed["lat"], parsed["lon"]) == (28.56, -80.57)
-
-    v22 = {**v23, "image": "https://x/old.jpg", "pad": {"name": "SLC-40", "latitude": "28.56", "longitude": "-80.57"}}
-    parsed = space.parse_launch(v22)
-    assert parsed["image"] == "https://x/old.jpg" and parsed["lat"] == 28.56 and parsed["location"] == ""
-
-    sparse = space.parse_launch({"name": None, "mission": None, "pad": None, "rocket": None, "status": None})
-    assert sparse["name"] == "Unnamed launch" and sparse["lat"] is None and sparse["image"] is None
-
-
-async def test_launches_panel_and_rate_limit_message(ctx):
-    result, used = await run("get_upcoming_launches", {"limit": 50}, ctx)
-    assert used == {"limit": 10}
-    assert result.panel["kind"] == "launches"
-    assert len(result.panel["points"]) == len(result.panel["items"])
-    assert "by SpaceX from Cape Canaveral" in result.summary
-
-    def limited(request):
-        return httpx.Response(429, json={"detail": "Request was throttled."})
-
-    with pytest.raises(ToolError, match="15 free requests an hour"):
-        await run("get_upcoming_launches", {}, make_ctx(limited))
-
-
-async def test_iss_falls_back_to_second_source():
-    def handler(request):
-        if request.url.host == "api.wheretheiss.at":
-            return httpx.Response(500)
-        return httpx.Response(
-            200,
-            json={"message": "success", "timestamp": 1791650000, "iss_position": {"latitude": "-12.5", "longitude": "140.25"}},
-        )
-
-    result, _ = await run("get_iss_position", {}, make_ctx(handler))
-    position = result.panel["position"]
-    assert (position["lat"], position["lon"]) == (-12.5, 140.25)
-    assert position["altitude_km"] is None
-    assert "12.5 degrees south, 140.2 degrees east" in result.summary
-
-
-async def test_iss_both_sources_down():
-    with pytest.raises(ToolError):
-        await run("get_iss_position", {}, make_ctx(lambda request: httpx.Response(503)))
-
-
 # ---- clock ----------------------------------------------------------------
 
 
@@ -414,7 +357,7 @@ async def test_clock_unknown_timezone(ctx):
 
 def test_every_tool_has_a_valid_schema():
     names = [t.name for t in tools.ALL_TOOLS]
-    assert len(names) == len(set(names)) == 9
+    assert len(names) == len(set(names)) == len(tool_registry.ALL_TOOLS)
     for tool in tools.ALL_TOOLS:
         assert tool.parameters["type"] == "object"
         assert len(tool.description) > 30

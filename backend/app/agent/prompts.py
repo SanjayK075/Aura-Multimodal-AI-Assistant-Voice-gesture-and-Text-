@@ -35,10 +35,12 @@ About the user
 - Default city: {city}
 - GitHub username: {github}
 - Units: {units}
+- Things the user asked you to remember:
+{memories}
 """
 
 
-def build_system_prompt(prefs: UserPrefs, now: datetime | None = None) -> str:
+def build_system_prompt(prefs: UserPrefs, now: datetime | None = None, memories: list[str] | None = None) -> str:
     try:
         zone = ZoneInfo(prefs.timezone or "UTC")
     except Exception:  # an unknown zone name from the browser must not break the request
@@ -48,5 +50,6 @@ def build_system_prompt(prefs: UserPrefs, now: datetime | None = None) -> str:
         now=f"{moment:%A, %d %B %Y, %H:%M} ({prefs.timezone or 'UTC'})",
         city=prefs.default_city or "not set",
         github=prefs.github_username or "not set",
+        memories="\n".join(f"  - {m[:200]}" for m in (memories or [])[:15]) or "  (nothing saved)",
         units="imperial (Fahrenheit, mph)" if prefs.units == "imperial" else "metric (Celsius, km/h)",
     )

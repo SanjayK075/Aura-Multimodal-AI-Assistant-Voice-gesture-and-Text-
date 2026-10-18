@@ -1,4 +1,5 @@
-"""Storage: conversations, messages and a log of every tool call.
+"""Storage: conversations, messages, a log of every tool call, the facts a
+person asked Aura to remember, and the traces of multi-step agent runs.
 
 SQLAlchemy keeps this identical on SQLite (local file, zero setup) and
 Postgres (in the cloud); only DATABASE_URL changes.
@@ -9,7 +10,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, create_engine, delete, select
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, create_engine, delete, func, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -73,6 +74,34 @@ class ToolCallLog(Base):
     source: Mapped[str] = mapped_column(String(80), default="")
     duration_ms: Mapped[int] = mapped_column(Integer, default=0)
     cached: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+
+
+class MemoryNote(Base):
+    """One fact the person asked Aura to remember, e.g. "my exam is on the 20th"."""
+
+    __tablename__ = "memories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    client_id: Mapped[str] = mapped_column(String(64), index=True)
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class AgentRun(Base):
+    """The full trace of one planned, multi-step run: plan, every step, timings, answer."""
+
+    __tablename__ = "agent_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    client_id: Mapped[str] = mapped_column(String(64), index=True)
+    conversation_id: Mapped[str] = mapped_column(String(36), default="")
+    task: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(16), default="running")  # running | done | error
+    plan: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    steps: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    answer: Mapped[str] = mapped_column(Text, default="")
+    meta: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
 
 
@@ -153,6 +182,8 @@ class Database:
             for conversation in conversations:
                 session.delete(conversation)
             session.execute(delete(ToolCallLog).where(ToolCallLog.client_id == client_id))
+            session.execute(delete(MemoryNote).where(MemoryNote.client_id == client_id))
+            session.execute(delete(AgentRun).where(AgentRun.client_id == client_id))
             session.commit()
             return len(conversations)
 
@@ -257,6 +288,108 @@ class Database:
                 }
                 for row in rows
             ]
+
+    # ---- memories: short facts the person asked Aura to keep --------------
+
+    MAX_MEMORIES = 200
+
+    @staticmethod
+    def _memory_dict(note: MemoryNote) -> dict[str, Any]:
+        return {"id": note.id, "text": note.text, "created_at": _iso(note.created_at)}
+
+    def add_memory(self, client_id: str, text: str) -> dict[str, Any]:
+        """Save a fact. Saying the same thing twice keeps one copy."""
+        text = " ".join(text.split())[:500]
+        with self._session() as session:
+            existing = session.scalars(
+                select(MemoryNote).where(MemoryNote.client_id == client_id, func.lower(MemoryNote.text) == text.lower())
+            ).first()
+            if existing is not None:
+                return self._memory_dict(existing)
+            count = session.scalar(select(func.count()).select_from(MemoryNote).where(MemoryNote.client_id == client_id))
+            if (count or 0) >= self.MAX_MEMORIES:
+                oldest = session.scalars(
+                    select(MemoryNote).where(MemoryNote.client_id == client_id).order_by(MemoryNote.id).limit(1)
+                ).first()
+                if oldest is not None:
+                    session.delete(oldest)
+            note = MemoryNote(client_id=client_id, text=text)
+            session.add(note)
+            session.commit()
+            return self._memory_dict(note)
+
+    def list_memories(self, client_id: str, query: str = "", limit: int = 100) -> list[dict[str, Any]]:
+        """Newest first. A query keeps only facts containing every one of its words."""
+        with self._session() as session:
+            statement = select(MemoryNote).where(MemoryNote.client_id == client_id)
+            for word in query.lower().split()[:6]:
+                statement = statement.where(func.lower(MemoryNote.text).contains(word))
+            rows = session.scalars(statement.order_by(MemoryNote.id.desc()).limit(limit)).all()
+            return [self._memory_dict(n) for n in rows]
+
+    def delete_memory(self, client_id: str, memory_id: int) -> bool:
+        with self._session() as session:
+            note = session.get(MemoryNote, memory_id)
+            if note is None or note.client_id != client_id:
+                return False
+            session.delete(note)
+            session.commit()
+            return True
+
+    def clear_memories(self, client_id: str) -> int:
+        with self._session() as session:
+            result = session.execute(delete(MemoryNote).where(MemoryNote.client_id == client_id))
+            session.commit()
+            return int(result.rowcount or 0)
+
+    # ---- agent runs ---------------------------------------------------------
+
+    def save_run(self, client_id: str, run: dict[str, Any]) -> None:
+        """Insert or update one run's trace."""
+        with self._session() as session:
+            row = session.get(AgentRun, run["id"])
+            if row is None:
+                row = AgentRun(id=run["id"], client_id=client_id)
+                session.add(row)
+            elif row.client_id != client_id:
+                return
+            row.conversation_id = run.get("conversation_id") or ""
+            row.task = run.get("task") or ""
+            row.status = run.get("status") or "running"
+            row.plan = run.get("plan") or {}
+            row.steps = run.get("steps") or []
+            row.answer = run.get("answer") or ""
+            row.meta = run.get("meta") or {}
+            session.commit()
+
+    @staticmethod
+    def _run_dict(row: AgentRun, full: bool) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "id": row.id,
+            "conversation_id": row.conversation_id,
+            "task": row.task,
+            "status": row.status,
+            "created_at": _iso(row.created_at),
+            "meta": row.meta or {},
+            "step_count": len(row.steps or []),
+        }
+        if full:
+            out.update(plan=row.plan or {}, steps=row.steps or [], answer=row.answer)
+        return out
+
+    def list_runs(self, client_id: str, limit: int = 30) -> list[dict[str, Any]]:
+        with self._session() as session:
+            rows = session.scalars(
+                select(AgentRun).where(AgentRun.client_id == client_id).order_by(AgentRun.created_at.desc()).limit(limit)
+            ).all()
+            return [self._run_dict(r, full=False) for r in rows]
+
+    def get_run(self, client_id: str, run_id: str) -> dict[str, Any] | None:
+        with self._session() as session:
+            row = session.get(AgentRun, run_id)
+            if row is None or row.client_id != client_id:
+                return None
+            return self._run_dict(row, full=True)
 
     def close(self) -> None:
         self.engine.dispose()

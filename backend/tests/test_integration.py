@@ -128,7 +128,7 @@ async def test_text_before_a_tool_call_is_reset(kind, llm_server):
         events, _ = await converse(provider_for(kind, llm_server, client), "preamble please")
     order = [e.type for e in events]
     assert order.index("reset") < order.index("tool")
-    assert events[-1].data["text"].startswith("The International Space Station is over")
+    assert events[-1].data["text"].startswith("It's ")
 
 
 @BOTH

@@ -19,11 +19,12 @@ import {
   type Size,
 } from "./layout";
 import type {
+  AgentConfirm,
+  AgentRun,
   Caption,
   Connection,
   DrawerName,
   GeoPoint,
-  IssPosition,
   Panel,
   PanelData,
   Phase,
@@ -49,6 +50,10 @@ export const DEFAULT_SETTINGS: Settings = {
   palmDismiss: true,
   showPreview: true,
   helpSeen: false,
+  swipeNav: true,
+  wakeWord: false,
+  earthStyle: "satellite",
+  agentMode: "auto",
 };
 
 function loadSettings(): Settings {
@@ -101,9 +106,19 @@ export interface State {
 
   /** The place the globe should turn towards; nonce changes on every request. */
   globeFocus: (GeoPoint & { nonce: number }) | null;
-  iss: IssPosition | null;
   /** Bumped whenever something that the drawers list has changed on the server. */
   serverRevision: number;
+  /** The multi-step run being shown on the Agent page (the latest one). */
+  agent: AgentRun | null;
+  /** An action waiting for the person's yes or no. */
+  confirmation: AgentConfirm | null;
+  /** A page-flip that just happened or is under way, for the on-screen hint. */
+  swipe: { nonce: number; direction: "next" | "previous"; title: string } | null;
+  swipeProgress: { value: number; direction: "next" | "previous" } | null;
+  setAgent(update: AgentRun | null | ((previous: AgentRun | null) => AgentRun | null)): void;
+  setConfirmation(confirmation: AgentConfirm | null): void;
+  flashSwipe(direction: "next" | "previous", title: string): void;
+  setSwipeProgress(progress: State["swipeProgress"]): void;
 
   setConnection(connection: Connection, config?: ServerConfig | null): void;
   setPhase(phase: Phase, label?: string): void;
@@ -133,7 +148,6 @@ export interface State {
   updateSettings(patch: Partial<Settings>): void;
 
   focusGlobe(point: GeoPoint): void;
-  setIss(position: IssPosition | null): void;
   touchServer(): void;
   newConversation(): void;
 }
@@ -162,8 +176,21 @@ export const useStore = create<State>()((set, get) => ({
   settings: loadSettings(),
 
   globeFocus: null,
-  iss: null,
   serverRevision: 0,
+  agent: null,
+  confirmation: null,
+  setConfirmation: (confirmation) => set({ confirmation }),
+  swipe: null,
+  swipeProgress: null,
+  setAgent: (update) => set((s) => ({ agent: typeof update === "function" ? update(s.agent) : update })),
+  flashSwipe: (direction, title) => set({ swipe: { nonce: nextId++, direction, title } }),
+  setSwipeProgress: (swipeProgress) =>
+    set((s) => {
+      const a = s.swipeProgress;
+      if (a === swipeProgress) return s;
+      if (a && swipeProgress && a.direction === swipeProgress.direction && Math.abs(a.value - swipeProgress.value) < 0.04) return s;
+      return { swipeProgress };
+    }),
 
   setConnection: (connection, config) =>
     set((s) => ({ connection, config: config === undefined ? s.config : config })),
@@ -289,7 +316,6 @@ export const useStore = create<State>()((set, get) => ({
     }),
 
   focusGlobe: (point) => set({ globeFocus: { ...point, nonce: nextId++ } }),
-  setIss: (iss) => set({ iss }),
   touchServer: () => set((s) => ({ serverRevision: s.serverRevision + 1 })),
 
   newConversation: () =>
@@ -302,18 +328,7 @@ export const useStore = create<State>()((set, get) => ({
     })),
 }));
 
-/** Every map marker contributed by the given panels (the ISS is drawn separately). */
+/** Every map marker contributed by the given panels. */
 export function globePointsOf(panels: Panel[]): GeoPoint[] {
-  const points: GeoPoint[] = [];
-  for (const panel of panels) {
-    for (const point of panel.data.points ?? []) {
-      if (point.kind !== "iss") points.push(point);
-    }
-  }
-  return points;
-}
-
-/** True while any panel is showing the space station, which turns on live tracking. */
-export function isTrackingIss(panels: Panel[]): boolean {
-  return panels.some((p) => p.data.type === "space" && p.data.kind === "iss");
+  return panels.flatMap((panel) => panel.data.points ?? []);
 }

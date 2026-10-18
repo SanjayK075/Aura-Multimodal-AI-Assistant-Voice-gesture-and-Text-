@@ -6,8 +6,10 @@
  * ask(), so every input method behaves identically.
  */
 import { useStore } from "../store/useStore";
-import type { PanelData } from "../store/types";
-import { ApiError, streamChat } from "./api";
+import type { AgentConfirm, AgentRun, AgentStep, PanelData } from "../store/types";
+import { ApiError, api, streamChat } from "./api";
+import { currentPage, navigate, pageById, swipePage, type PageId } from "./router";
+import { globeControl } from "./globeControl";
 import { toSpeech } from "./markdown";
 import { Recognizer, Speaker, speechSupport } from "./speech";
 import {
@@ -15,9 +17,18 @@ import {
   isStopPhrase,
   looksLikeRequest,
   parseVoiceCommand,
+  parseYesNo,
+  stripWakeWord,
   type QuickName,
   type VoiceCommand,
 } from "./voiceCommands";
+
+/** Pages that show an answer where they are; asking from any other page takes you to Command. */
+const ANSWERS_IN_PLACE: PageId[] = ["command", "agent"];
+
+/** When the wake word is on, speech only counts for this long after "Hey Aura". */
+const AWAKE_WINDOW_MS = 12_000;
+let awakeUntil = 0;
 
 const speaker = new Speaker();
 /** The microphone stays open while Aura talks (so "stop" can interrupt), so it must not take Aura's own voice for a request. */
@@ -152,6 +163,8 @@ export async function ask(question: string): Promise<void> {
   const controller = new AbortController();
   activeRequest = controller;
 
+  if (!ANSWERS_IN_PLACE.includes(currentPage().id)) navigate("command");
+  const agentMode = store.settings.agentMode;
   const turnId = `t${Date.now()}`;
   store.setBusy(true);
   store.setPhase("thinking");
@@ -194,12 +207,45 @@ export async function ask(question: string): Promise<void> {
     for (const id of turnPanels) s.updatePanel(id, { streaming: false });
   };
 
+  const patchAgent = (update: (run: AgentRun) => AgentRun) =>
+    useStore.getState().setAgent((run) => (run && run.id === runId ? update(run) : run));
+  let runId = "";
+  const runPanels: PanelData[] = [];
+
   const onEvent = (event: string, data: Record<string, unknown>) => {
     if (controller.signal.aborted) return;
     const s = useStore.getState();
     switch (event) {
       case "meta":
         s.setConversation(String(data.conversation_id));
+        runId = String(data.run_id ?? "");
+        s.setAgent({
+          id: runId, task: text, status: "planning", plan: null, steps: {}, confirm: null, answer: "",
+          timings: null, latencyMs: null, startedAt: Date.now(), panels: [], error: null,
+        });
+        break;
+      case "plan": {
+        const plan = data as unknown as NonNullable<AgentRun["plan"]>;
+        patchAgent((run) => ({
+          ...run, status: "running", plan,
+          steps: Object.fromEntries(plan.steps.map((st) => [st.id, { ...st, state: "pending", attempts: 0, started_ms: null, duration_ms: null, summary: "", error: null, source: null, cached: false } as AgentStep])),
+        }));
+        s.setPhase("tool", `Running ${plan.steps.length} steps`);
+        break;
+      }
+      case "step": {
+        const step = data as unknown as AgentStep;
+        patchAgent((run) => ({ ...run, steps: { ...run.steps, [step.id]: { ...run.steps[step.id], ...step } } }));
+        if (step.state === "done" || step.state === "failed") {
+          const steps = Object.values(useStore.getState().agent?.steps ?? {});
+          const finished = steps.filter((x) => x.state === "done" || x.state === "failed" || x.state === "skipped").length;
+          s.setPhase("tool", `Step ${Math.min(finished + 1, steps.length)} of ${steps.length}`);
+        }
+        break;
+      }
+      case "confirm":
+        s.setConfirmation(data as unknown as AgentConfirm);
+        if (useStore.getState().settings.voiceMode === "handsfree") speak(String(data.prompt ?? "Shall I go ahead?"));
         break;
       case "status":
         if (data.state === "tool") s.setPhase("tool", String(data.label ?? "Working"));
@@ -218,6 +264,7 @@ export async function ask(question: string): Promise<void> {
       case "tool": {
         const panel = data.panel as PanelData | null;
         if (panel) {
+          runPanels.push({ ...panel, source: data.source as string | null, source_url: data.source_url as string | null });
           const id = s.addPanel(
             { ...panel, source: data.source as string | null, source_url: data.source_url as string | null },
             turnId,
@@ -234,6 +281,11 @@ export async function ask(question: string): Promise<void> {
         break;
       case "done":
         finished = true;
+        s.setConfirmation(null);
+        patchAgent((run) => ({
+          ...run, status: "done", answer: String(data.text ?? ""), panels: runPanels,
+          timings: (data.timings as AgentRun["timings"]) ?? null, latencyMs: Number(data.latency_ms ?? 0),
+        }));
         answer = String(data.text ?? answer);
         if (frame !== null) window.cancelAnimationFrame(frame);
         render(false);
@@ -246,6 +298,8 @@ export async function ask(question: string): Promise<void> {
       case "error":
         finished = true;
         settle();
+        s.setConfirmation(null);
+        patchAgent((run) => ({ ...run, status: "error", error: String(data.message ?? "") }));
         fail(String(data.message ?? "Something went wrong."));
         break;
     }
@@ -256,6 +310,7 @@ export async function ask(question: string): Promise<void> {
       {
         message: text,
         conversation_id: store.conversationId,
+        mode: agentMode,
         prefs: {
           default_city: store.settings.defaultCity,
           github_username: store.settings.githubUsername,
@@ -312,7 +367,8 @@ export function refreshRecognizer(): void {
   if (store.micOn) recognizer.start(store.settings.speechLang);
 }
 
-export function handleUtterance(text: string, confidence: number): void {
+export function handleUtterance(heardText: string, confidence: number): void {
+  let text = heardText;
   const store = useStore.getState();
 
   if (speakingNow) {
@@ -326,6 +382,31 @@ export function handleUtterance(text: string, confidence: number): void {
   }
   // The last words of a reply can reach the recognizer just after the speaker finishes.
   if (Date.now() - spokeAt < ECHO_WINDOW_MS && isEcho(text, lastSpoken)) return;
+
+
+  // An action is waiting for a yes or no: that is the only thing this could be.
+  if (store.confirmation) {
+    const answer = parseYesNo(text);
+    if (answer !== null) {
+      store.setCaption({ you: text, interim: "" });
+      void answerConfirmation(answer);
+      return;
+    }
+  }
+
+  // With the wake word on, ignore speech unless it starts with "Hey Aura" or follows it closely.
+  if (store.settings.wakeWord) {
+    const heard = stripWakeWord(text);
+    if (heard === null && Date.now() > awakeUntil) return;
+    awakeUntil = Date.now() + AWAKE_WINDOW_MS;
+    if (heard !== null) {
+      if (heard === "") {
+        store.setCaption({ you: text, interim: "", aura: "I'm listening." });
+        return;
+      }
+      text = heard;
+    }
+  }
 
   store.setCaption({ you: text, interim: "" });
 
@@ -342,6 +423,25 @@ export function handleUtterance(text: string, confidence: number): void {
   if (looksLikeRequest(text, confidence)) void ask(text);
 }
 
+/** Approve or refuse the action Aura is waiting on, from the confirmation card or by voice. */
+export async function answerConfirmation(approved: boolean): Promise<void> {
+  const store = useStore.getState();
+  const pending = store.confirmation;
+  if (!pending) return;
+  store.setConfirmation(null);
+  try {
+    await api.confirm(pending.run_id, pending.step_id, approved);
+  } catch {
+    store.toast("That question had already expired.");
+  }
+}
+
+/** Scroll whatever the current page scrolls (not a floating panel). */
+function scrollCurrentPage(direction: 1 | -1): void {
+  const element = document.querySelector<HTMLElement>(".page");
+  element?.scrollBy({ top: direction * element.clientHeight * 0.8, behavior: "smooth" });
+}
+
 export function runCommand(command: VoiceCommand): void {
   const store = useStore.getState();
   const focused = store.panels.find((p) => p.id === store.focusedId) ?? store.panels[store.panels.length - 1];
@@ -354,10 +454,24 @@ export function runCommand(command: VoiceCommand): void {
       store.closeUnpinned();
       break;
     case "next":
-      if (focused) scrollPanel(focused.id, 1);
+      if (currentPage().id === "command" && focused) scrollPanel(focused.id, 1);
+      else scrollCurrentPage(1);
       break;
     case "previous":
-      if (focused) scrollPanel(focused.id, -1);
+      if (currentPage().id === "command" && focused) scrollPanel(focused.id, -1);
+      else scrollCurrentPage(-1);
+      break;
+    case "goto":
+      navigate(command.page);
+      store.toast(`Opened ${pageById(command.page).title}.`);
+      break;
+    case "flip": {
+      const page = swipePage(command.step);
+      store.flashSwipe(command.step === 1 ? "next" : "previous", page.title);
+      break;
+    }
+    case "resetGlobe":
+      globeControl.reset();
       break;
     case "bigger":
       if (focused) store.setPanelScale(focused.id, focused.scale * 1.25);
@@ -451,7 +565,7 @@ export function runQuickAction(action: QuickAction): void {
       void ask("Show today's featured Wikipedia article");
       break;
     case "space":
-      void ask("Where is the space station right now?");
+      void ask("Show NASA's picture of the day");
       break;
   }
 }

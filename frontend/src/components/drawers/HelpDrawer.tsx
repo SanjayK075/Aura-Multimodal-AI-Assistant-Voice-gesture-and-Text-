@@ -8,6 +8,7 @@ const GESTURES: [string, string][] = [
   ["Pinch and move", "On a panel, drags it. On empty space, spins the globe."],
   ["Both hands pinch", "Pull apart or push together to resize a panel, or zoom the globe."],
   ["Open palm", "Hold a flat hand over a panel for a moment to close it."],
+  ["Wave sideways", "Sweep an open hand left or right to flip to the next or previous page."],
 ];
 
 const VOICE: [string, string][] = [
@@ -20,7 +21,10 @@ const VOICE: [string, string][] = [
   ["Stop, enough", "Interrupts a spoken reply, even while Aura is talking."],
   ["Mute", "Silences spoken replies until you say unmute."],
   ["Open the GitHub panel", "Also weather, news, Wikipedia and space. Same as pressing that button."],
-  ["Open history", "Also activity, settings and help."],
+  ["Go to the map", "Also home, agent, earth, satellites, news, GitHub and memory."],
+  ["Next page, previous page", "Flips through the pages."],
+  ["Hey Aura, ...", "Say it first if the wake word is turned on in settings."],
+  ["Open history", "Also settings and help."],
   ["Camera on, stop listening", "Turns hand control or the microphone on and off."],
 ];
 
@@ -47,9 +51,19 @@ export function HelpDrawer() {
           <li>Show open issues in fastapi/fastapi</li>
           <li>What's the latest news about AI?</li>
           <li>Who was Alan Turing?</li>
-          <li>Where is the space station right now?</li>
-          <li>Explain how a hash map works</li>
+          <li>Compare the weather in Pune and Delhi, then recommend one</li>
+          <li>Which satellites are above me?</li>
+          <li>Remember that I prefer metric units</li>
         </ul>
+      </DrawerSection>
+
+      <DrawerSection title="Pages">
+        <p className="muted">
+          Aura has a page for each job: Command, Agent, Earth, Satellites, Weather, Map, News, GitHub and Memory. Use
+          the arrows or the page menu at the top, wave your hand sideways, or say "go to the map". The Agent page
+          shows the plan Aura made for a multi-part request and each step as it runs. Anything that changes something,
+          such as forgetting a memory, asks you first.
+        </p>
       </DrawerSection>
 
       <DrawerSection title="Hands">

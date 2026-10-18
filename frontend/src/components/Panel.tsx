@@ -24,7 +24,11 @@ import {
   WikipediaIcon,
 } from "./icons";
 import { IconButton } from "./IconButton";
+import { AirBody } from "./panels/AirBody";
 import { AnswerBody } from "./panels/AnswerBody";
+import { MemoryBody } from "./panels/MemoryBody";
+import { SatellitesBody } from "./panels/SatellitesBody";
+import { SearchBody } from "./panels/SearchBody";
 import { GithubBody } from "./panels/GithubBody";
 import { NewsBody } from "./panels/NewsBody";
 import { SpaceBody } from "./panels/SpaceBody";
@@ -44,7 +48,10 @@ function typeIcon(data: PanelData): ReactNode {
     case "wikipedia":
       return <WikipediaIcon />;
     case "space":
+    case "satellites":
       return <SpaceIcon />;
+    case "air":
+      return <WeatherIcon />;
     default:
       return <AnswerIcon />;
   }
@@ -62,6 +69,14 @@ function Body({ data }: { data: PanelData }) {
       return <WikipediaBody data={data} />;
     case "space":
       return <SpaceBody data={data} />;
+    case "air":
+      return <AirBody data={data} />;
+    case "satellites":
+      return <SatellitesBody data={data} />;
+    case "search":
+      return <SearchBody data={data} />;
+    case "memory":
+      return <MemoryBody data={data} />;
     default:
       return <AnswerBody data={data} />;
   }
@@ -136,10 +151,6 @@ export const Panel = memo(function Panel({ panel, compact }: { panel: PanelModel
       aria-label={panel.data.title}
       onPointerDownCapture={() => focusPanel(panel.id)}
     >
-      <span className="panel-corner" data-corner="tl" />
-      <span className="panel-corner" data-corner="tr" />
-      <span className="panel-corner" data-corner="bl" />
-      <span className="panel-corner" data-corner="br" />
 
       <header
         className="panel-head"

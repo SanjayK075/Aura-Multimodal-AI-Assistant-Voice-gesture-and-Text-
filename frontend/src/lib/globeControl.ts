@@ -16,16 +16,29 @@ export interface LabelPosition {
   visible: boolean;
 }
 
+/** Where the globe sits in the view: offset (world units) and size multiplier. */
+export interface GlobeLayout {
+  x: number;
+  y: number;
+  scale: number;
+}
+
+export const DEFAULT_LAYOUT: GlobeLayout = { x: 0, y: 0.2, scale: 1 };
+const START = { yaw: -2.95, pitch: 0.3 }; // facing India
+
 export const globeControl = {
-  yaw: -2.95, // start facing India
-  pitch: 0.3,
+  yaw: START.yaw,
+  pitch: START.pitch,
   zoom: 1,
   /** Where an eased turn is heading, or null when the user is in control. */
   target: null as { yaw: number; pitch: number } | null,
   lastInput: -Infinity,
+  /** The layout the scene is easing towards; pages set it with setLayout. */
+  layout: { ...DEFAULT_LAYOUT } as GlobeLayout,
+  /** Extra spin speed (radians a second) added while idle or on the home page. */
+  drift: 0.05,
   /** Screen positions of marker labels, written by the scene, read by the label layer. */
   labels: [] as LabelPosition[],
-  issLabel: { x: 0, y: 0, visible: false } as LabelPosition,
 
   rotateBy(dx: number, dy: number): void {
     this.target = null;
@@ -44,5 +57,16 @@ export const globeControl = {
     const { pitch, yaw } = rotationToFace(lat, lon);
     this.target = { yaw, pitch: Math.min(MAX_PITCH, Math.max(-MAX_PITCH, pitch)) };
     this.lastInput = performance.now();
+  },
+
+  /** Back to the starting view: facing India, normal size. */
+  reset(): void {
+    this.target = { yaw: START.yaw, pitch: START.pitch };
+    this.zoom = 1;
+    this.lastInput = performance.now();
+  },
+
+  setLayout(layout: Partial<GlobeLayout>): void {
+    this.layout = { ...DEFAULT_LAYOUT, ...layout };
   },
 };

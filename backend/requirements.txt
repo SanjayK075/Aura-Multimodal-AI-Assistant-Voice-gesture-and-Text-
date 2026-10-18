@@ -7,3 +7,4 @@ pydantic-settings==2.15.0
 psycopg[binary]==3.3.6
 defusedxml==0.7.1
 tzdata==2026.5
+sgp4==2.27            # satellite orbit propagation

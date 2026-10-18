@@ -7,7 +7,9 @@ tools without calling anyone. Every response mimics the real API's format.
 """
 from __future__ import annotations
 
+import base64
 import hashlib
+import json
 import math
 import time
 from datetime import datetime, timedelta, timezone
@@ -29,6 +31,15 @@ CITIES: dict[str, dict[str, Any]] = {
     "new york": {"name": "New York", "latitude": 40.71427, "longitude": -74.00597, "country": "United States", "country_code": "US", "admin1": "New York", "timezone": "America/New_York"},
     "tokyo": {"name": "Tokyo", "latitude": 35.6895, "longitude": 139.69171, "country": "Japan", "country_code": "JP", "admin1": "Tokyo", "timezone": "Asia/Tokyo"},
     "paris": {"name": "Paris", "latitude": 48.85341, "longitude": 2.3488, "country": "France", "country_code": "FR", "admin1": "Île-de-France", "timezone": "Europe/Paris"},
+    "pune": {"name": "Pune", "latitude": 18.51957, "longitude": 73.85535, "country": "India", "country_code": "IN", "admin1": "Maharashtra", "timezone": "Asia/Kolkata"},
+    "hyderabad": {"name": "Hyderabad", "latitude": 17.38405, "longitude": 78.45636, "country": "India", "country_code": "IN", "admin1": "Telangana", "timezone": "Asia/Kolkata"},
+    "kolkata": {"name": "Kolkata", "latitude": 22.56263, "longitude": 88.36304, "country": "India", "country_code": "IN", "admin1": "West Bengal", "timezone": "Asia/Kolkata"},
+    "kochi": {"name": "Kochi", "latitude": 9.93988, "longitude": 76.26022, "country": "India", "country_code": "IN", "admin1": "Kerala", "timezone": "Asia/Kolkata"},
+    "jaipur": {"name": "Jaipur", "latitude": 26.91962, "longitude": 75.78781, "country": "India", "country_code": "IN", "admin1": "Rajasthan", "timezone": "Asia/Kolkata"},
+    "san francisco": {"name": "San Francisco", "latitude": 37.77493, "longitude": -122.41942, "country": "United States", "country_code": "US", "admin1": "California", "timezone": "America/Los_Angeles"},
+    "singapore": {"name": "Singapore", "latitude": 1.28967, "longitude": 103.85007, "country": "Singapore", "country_code": "SG", "admin1": "Singapore", "timezone": "Asia/Singapore"},
+    "dubai": {"name": "Dubai", "latitude": 25.07725, "longitude": 55.30927, "country": "United Arab Emirates", "country_code": "AE", "admin1": "Dubai", "timezone": "Asia/Dubai"},
+    "berlin": {"name": "Berlin", "latitude": 52.52437, "longitude": 13.41053, "country": "Germany", "country_code": "DE", "admin1": "Berlin", "timezone": "Europe/Berlin"},
     "sydney": {"name": "Sydney", "latitude": -33.86785, "longitude": 151.20732, "country": "Australia", "country_code": "AU", "admin1": "New South Wales", "timezone": "Australia/Sydney"},
 }
 _ALIASES = {"bangalore": "bengaluru", "new delhi": "delhi", "madras": "chennai", "bombay": "mumbai", "nyc": "new york"}
@@ -71,6 +82,13 @@ def _forecast(params: httpx.QueryParams) -> dict[str, Any]:
 
     today = datetime.now(timezone.utc).date()
     dates = [(today + timedelta(days=i)).isoformat() for i in range(days)]
+    hours = [f"{d}T{h:02d}:00" for d in dates for h in range(24)]
+    hourly = {
+        "time": hours,
+        "temperature_2m": [unit(base - 4 + 6 * math.sin((i % 24 - 9) / 24 * 2 * math.pi)) for i in range(len(hours))],
+        "precipitation_probability": [(seed + i * 7) % 70 for i in range(len(hours))],
+        "cloud_cover": [(seed * 3 + i * 11) % 100 for i in range(len(hours))],
+    }
     return {
         "latitude": lat,
         "longitude": lon,
@@ -86,7 +104,9 @@ def _forecast(params: httpx.QueryParams) -> dict[str, Any]:
             "wind_speed_10m": round((7 + seed % 14) * (0.62 if imperial else 1), 1),
             "weather_code": codes[seed % len(codes)],
             "is_day": 1,
+            "cloud_cover": (seed * 3) % 100,
         },
+        "hourly": hourly,
         "daily": {
             "time": dates,
             "weather_code": [codes[(seed + i) % len(codes)] for i in range(days)],
@@ -201,55 +221,167 @@ def _wiki_page(title: str) -> dict[str, Any]:
     return page
 
 
-def _launches(limit: int) -> dict[str, Any]:
-    now = datetime.now(timezone.utc)
-    samples = [
-        ("Falcon 9 Block 5 | Starlink Group 12-4", "SpaceX", "Falcon 9 Block 5", "Space Launch Complex 40", "Cape Canaveral SFS, FL, USA", 28.56194122, -80.57735736, "Go for Launch", "Go", "Low Earth Orbit", 1),
-        ("LVM-3 | OneWeb 21", "Indian Space Research Organization", "LVM-3", "Second Launch Pad", "Satish Dhawan Space Centre, India", 13.7199, 80.2304, "To Be Confirmed", "TBC", "Low Earth Orbit", 4),
-        ("Ariane 64 | Kuiper KA-05", "Arianespace", "Ariane 64", "Ariane Launch Area 4", "Guiana Space Centre, French Guiana", 5.2569, -52.7862, "To Be Determined", "TBD", "Low Earth Orbit", 9),
-        ("Electron | The Sample Mission", "Rocket Lab", "Electron", "Rocket Lab Launch Complex 1B", "Onenui Station, Mahia Peninsula, New Zealand", -39.2615, 177.8649, "Go for Launch", "Go", "Sun-Synchronous Orbit", 12),
-        ("H3-24 | HTV-X3", "Mitsubishi Heavy Industries", "H3-24", "Yoshinobu Launch Complex LP-2", "Tanegashima Space Center, Japan", 30.4009, 130.9751, "To Be Determined", "TBD", "Low Earth Orbit", 20),
-    ]
-    results = [
-        {
-            "id": f"sample-{index}",
-            "name": name,
-            "status": {"name": status, "abbrev": abbrev},
-            "net": (now + timedelta(days=days, hours=3)).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "image": None,
-            "launch_service_provider": {"name": provider},
-            "rocket": {"configuration": {"name": rocket.split(" ")[0], "full_name": rocket}},
-            "mission": {
-                "name": name.split(" | ")[-1],
-                "description": f"A sample mission entry. {SAMPLE_NOTE}",
-                "orbit": {"name": orbit},
-            },
-            "pad": {"name": pad, "latitude": lat, "longitude": lon, "location": {"name": location}},
-        }
-        for index, (name, provider, rocket, pad, location, lat, lon, status, abbrev, orbit, days) in enumerate(samples)
-    ]
-    return {"count": len(results), "next": None, "previous": None, "results": results[:limit]}
 
 
-def iss_position(now: float | None = None) -> dict[str, Any]:
-    """A simulated orbit: 51.6 degree inclination, about 92.7 minutes per lap."""
-    t = time.time() if now is None else now
-    period = 5560.0
-    phase = 2 * math.pi * (t % period) / period
-    lat = 51.6 * math.sin(phase)
-    # Ground track drifts west as the Earth turns under the orbit.
-    lon = ((t % period) / period * 360.0 - (t % 86164.0) / 86164.0 * 360.0 + 180.0) % 360.0 - 180.0
+# ---- air quality, earthquakes, satellites, asteroids, search, imagery ---------
+
+def _air(params: httpx.QueryParams) -> dict[str, Any]:
+    lat, lon = float(params.get("latitude", 0)), float(params.get("longitude", 0))
+    seed = _seed("air", round(lat, 1), round(lon, 1))
+    # Bigger, hotter inland cities get worse air in the sample data, as they often do.
+    aqi = 35 + seed % 120
+    now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    hours = [(now + timedelta(hours=i)).strftime("%Y-%m-%dT%H:%M") for i in range(48)]
     return {
-        "name": "iss",
-        "id": 25544,
-        "latitude": round(lat, 5),
-        "longitude": round(lon, 5),
-        "altitude": 419.4,
-        "velocity": 27580.3,
-        "visibility": "daylight",
-        "timestamp": int(t),
-        "units": "kilometers",
+        "latitude": lat,
+        "longitude": lon,
+        "timezone": "GMT",
+        "current": {
+            "time": now.strftime("%Y-%m-%dT%H:%M"),
+            "us_aqi": aqi,
+            "european_aqi": round(aqi * 0.6),
+            "uv_index": round(2 + (seed % 90) / 10, 1),
+            "pm2_5": round(aqi * 0.42, 1),
+            "pm10": round(aqi * 0.7, 1),
+            "ozone": round(40 + seed % 60, 1),
+            "nitrogen_dioxide": round(8 + seed % 30, 1),
+            "sulphur_dioxide": round(2 + seed % 12, 1),
+            "carbon_monoxide": round(180 + seed % 400, 1),
+        },
+        "hourly": {
+            "time": hours,
+            "us_aqi": [max(10, aqi + round(25 * math.sin(i / 5))) for i in range(48)],
+            "pm2_5": [round(max(4, aqi * 0.42 + 10 * math.sin(i / 5)), 1) for i in range(48)],
+        },
     }
+
+
+_QUAKE_PLACES = [
+    (38.32, 142.37, "Iwaki, Japan", 24.0),
+    (-6.5, 129.8, "Tual, Indonesia", 160.0),
+    (36.1, 70.8, "Jurm, Afghanistan", 210.0),
+    (-33.1, -72.0, "Valparaiso, Chile", 18.0),
+    (61.3, -150.1, "Anchorage, Alaska", 45.0),
+    (37.4, 21.6, "Pylos, Greece", 10.0),
+    (-17.8, -178.1, "Levuka, Fiji", 560.0),
+    (14.5, -92.4, "Tapachula, Mexico", 33.0),
+    (28.2, 84.7, "Gorkha, Nepal", 12.0),
+    (-41.7, 172.9, "Kaikoura, New Zealand", 15.0),
+    (13.1, 93.4, "Port Blair, India", 35.0),
+    (35.7, -117.6, "Ridgecrest, California", 8.0),
+    (19.4, -155.3, "Pahala, Hawaii", 2.0),
+    (-8.9, 110.4, "Cilacap, Indonesia", 60.0),
+]
+
+
+
+
+_NAMED_SATELLITES = [
+    ("ISS (ZARYA)", 25544, "1998-067A", 51.64, 15.50),
+    ("CSS (TIANHE)", 48274, "2021-035A", 41.47, 15.60),
+    ("HST", 20580, "1990-037B", 28.47, 15.29),
+    ("NOAA 19", 33591, "2009-005A", 99.19, 14.13),
+    ("TERRA", 25994, "1999-068A", 98.10, 14.57),
+    ("AQUA", 27424, "2002-022A", 98.20, 14.58),
+    ("LANDSAT 9", 49260, "2021-088A", 98.22, 14.57),
+    ("SENTINEL-2A", 40697, "2015-028A", 98.57, 14.31),
+    ("METOP-B", 38771, "2012-049A", 98.70, 14.21),
+    ("SUOMI NPP", 37849, "2011-061A", 98.73, 14.20),
+    ("CARTOSAT-3", 44804, "2019-081A", 97.50, 15.19),
+    ("RISAT-2B", 44233, "2019-028A", 36.99, 15.20),
+]
+
+
+def _omm(name: str, norad: int, intl: str, inclination: float, mean_motion: float, epoch: datetime, seed: int) -> dict[str, Any]:
+    return {
+        "OBJECT_NAME": name,
+        "OBJECT_ID": intl,
+        "EPOCH": epoch.strftime("%Y-%m-%dT%H:%M:%S.%f"),
+        "MEAN_MOTION": mean_motion,
+        "ECCENTRICITY": 0.0002 + (seed % 9) * 0.0001,
+        "INCLINATION": inclination,
+        "RA_OF_ASC_NODE": seed % 360,
+        "ARG_OF_PERICENTER": (seed // 7) % 360,
+        "MEAN_ANOMALY": (seed // 13) % 360,
+        "EPHEMERIS_TYPE": 0,
+        "CLASSIFICATION_TYPE": "U",
+        "NORAD_CAT_ID": norad,
+        "ELEMENT_SET_NO": 999,
+        "REV_AT_EPOCH": 10000 + seed % 5000,
+        "BSTAR": 0.00012,
+        "MEAN_MOTION_DOT": 0.00001,
+        "MEAN_MOTION_DDOT": 0,
+    }
+
+
+def _satellites(params: httpx.QueryParams) -> Any:
+    group = (params.get("GROUP") or "visual").lower()
+    epoch = datetime.now(timezone.utc) - timedelta(hours=1)
+    records: list[dict[str, Any]] = []
+    if group == "stations":
+        named = _NAMED_SATELLITES[:2]
+    elif group in ("visual", "science", "weather"):
+        named = _NAMED_SATELLITES
+    else:
+        named = []
+    for index, (name, norad, intl, inclination, mean_motion) in enumerate(named):
+        records.append(_omm(name, norad, intl, inclination, mean_motion, epoch, _seed("sat", norad)))
+    extra = {"starlink": 160, "gps-ops": 31, "amateur": 24, "visual": 28}.get(group, 0)
+    for index in range(extra):
+        seed = _seed(group, index)
+        if group == "starlink":
+            name, inclination, mean_motion = f"STARLINK-{1000 + index}", 53.05, 15.06
+        elif group == "gps-ops":
+            name, inclination, mean_motion = f"GPS BIIF-{index + 1}", 55.0, 2.0057
+        else:
+            name, inclination, mean_motion = f"SAMPLE SAT {index + 1}", [53.0, 70.0, 82.5, 97.6, 98.7][seed % 5], 13.8 + (seed % 17) / 10
+        records.append(_omm(name, 90000 + index, f"2024-{index:03d}A", inclination, mean_motion, epoch, seed))
+    if not records:
+        return "No GP data found"
+    return records
+
+
+
+
+def _tavily(request: httpx.Request) -> dict[str, Any]:
+    body = json.loads(request.content or b"{}")
+    query = str(body.get("query") or "")
+    return {
+        "query": query,
+        "answer": f"Sample answer about {query}. {SAMPLE_NOTE}",
+        "results": [
+            {
+                "title": f"Sample result {i + 1} for {query}",
+                "url": f"https://example.com/search-sample-{i + 1}",
+                "content": f"A sample page about {query}. {SAMPLE_NOTE}",
+                "score": round(0.9 - i * 0.1, 2),
+            }
+            for i in range(int(body.get("max_results") or 5))
+        ],
+    }
+
+
+def _duckduckgo(params: httpx.QueryParams) -> dict[str, Any]:
+    query = params.get("q") or ""
+    return {
+        "Heading": query.title(),
+        "AbstractText": f"{query.title()} is the subject of this sample instant answer. {SAMPLE_NOTE}",
+        "AbstractURL": f"https://en.wikipedia.org/wiki/{query.replace(' ', '_')}",
+        "AbstractSource": "Wikipedia",
+        "Answer": "",
+        "RelatedTopics": [
+            {"Text": f"{query.title()} history - How {query} came about.", "FirstURL": "https://duckduckgo.com/sample-history"},
+            {"Topics": [{"Text": f"{query.title()} today - What is new with {query}.", "FirstURL": "https://duckduckgo.com/sample-today"}]},
+        ],
+    }
+
+
+# A tiny real JPEG, standing in for NASA's daily satellite image of the whole Earth.
+SAMPLE_EARTH_JPEG = base64.b64decode(
+    "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAoHBwgHBgoICAgLCgoLDhgQDg0NDh0VFhEYIx8lJCIfIiEmKzcvJik0KSEiMEExNDk7Pj4+JS5ESUM8SDc9Pjv/2wBDAQoLCw4NDhwQEBw7KCIoOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozv/wAARCAAIABADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDlOegznp17/wCf1we9Jxjg8euO3r/P9RRRXStTyz//2Q=="
+)
+
+
 
 
 def handler(request: httpx.Request) -> httpx.Response:
@@ -278,6 +410,19 @@ def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(200, json=_wiki_page(title))
         if path.startswith("/api/rest_v1/feed/featured/"):
             return httpx.Response(200, json={"tfa": _wiki_page("Sample Featured Article")})
+    if host == "air-quality-api.open-meteo.com":
+        return httpx.Response(200, json=_air(params))
+    if host == "celestrak.org":
+        found = _satellites(params)
+        if isinstance(found, str):
+            return httpx.Response(200, text=found)
+        return httpx.Response(200, json=found)
+    if host == "api.tavily.com":
+        return httpx.Response(200, json=_tavily(request))
+    if host == "api.duckduckgo.com":
+        return httpx.Response(200, json=_duckduckgo(params))
+    if host == "gibs.earthdata.nasa.gov":
+        return httpx.Response(200, content=SAMPLE_EARTH_JPEG, headers={"content-type": "image/jpeg"})
     if host == "api.nasa.gov":
         return httpx.Response(
             200,
@@ -295,10 +440,6 @@ def handler(request: httpx.Request) -> httpx.Response:
                 "service_version": "v1",
             },
         )
-    if host == "ll.thespacedevs.com":
-        return httpx.Response(200, json=_launches(int(params.get("limit", 5))))
-    if host == "api.wheretheiss.at":
-        return httpx.Response(200, json=iss_position())
     return httpx.Response(404, json={"message": "No sample data for this address"})
 
 

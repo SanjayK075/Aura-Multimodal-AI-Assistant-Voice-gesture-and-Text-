@@ -67,7 +67,7 @@ def plan(question: str, tool_results: list[dict[str, Any]], steps_done: int) -> 
     if "both" in lowered and steps_done == 0:
         return {"calls": [("get_weather", {"city": "Chennai"}), ("get_weather", {"city": "Mumbai"})]}
     if "preamble" in lowered and steps_done == 0:
-        return {"text": "Let me look that up.", "calls": [("get_iss_position", {})]}
+        return {"text": "Let me look that up.", "calls": [("get_datetime", {})]}
     if tool_results:
         failed = [r["error"] for r in tool_results if r.get("error")]
         if failed:

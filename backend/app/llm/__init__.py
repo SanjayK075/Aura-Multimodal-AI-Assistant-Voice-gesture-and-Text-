@@ -62,12 +62,13 @@ class FallbackProvider:
         messages: list[ChatMessage],
         tools: list[ToolSpec],
         context: dict[str, Any] | None = None,
+        tool_choice: str | None = None,
     ) -> AsyncIterator[LLMEvent]:
         order = self._order()
         for index, provider in enumerate(order):
             emitted = False
             try:
-                async for event in provider.stream(system, messages, tools, context):
+                async for event in provider.stream(system, messages, tools, context, tool_choice):
                     emitted = True
                     self.active = provider
                     yield event

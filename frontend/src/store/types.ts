@@ -6,7 +6,7 @@ export interface GeoPoint {
   lat: number;
   lon: number;
   label: string;
-  kind: "city" | "place" | "launch" | "iss";
+  kind: "city" | "place" | "satellite";
 }
 
 interface PanelBase {
@@ -48,6 +48,7 @@ export interface WeatherData extends PanelBase {
     time: string | null;
   };
   daily: WeatherDay[];
+  hourly?: { time: string; temperature: number | null; rain_chance: number | null; cloud_cover: number | null }[];
 }
 
 export interface RepoItem {
@@ -101,34 +102,7 @@ export interface WikipediaData extends PanelBase {
   featured: boolean;
 }
 
-export interface LaunchItem {
-  name: string;
-  net: string | null;
-  status: string;
-  status_code: string;
-  provider: string;
-  rocket: string;
-  mission: string;
-  mission_description: string;
-  orbit: string;
-  pad: string;
-  location: string;
-  lat: number | null;
-  lon: number | null;
-  image: string | null;
-}
-
-export interface IssPosition {
-  lat: number;
-  lon: number;
-  altitude_km: number | null;
-  velocity_kmh: number | null;
-  visibility: string;
-  timestamp: number;
-}
-
-export type SpaceData =
-  | (PanelBase & {
+export type SpaceData = PanelBase & {
       type: "space";
       kind: "apod";
       date: string;
@@ -138,11 +112,133 @@ export type SpaceData =
       is_video: boolean;
       video_url: string | null;
       credit: string;
-    })
-  | (PanelBase & { type: "space"; kind: "launches"; items: LaunchItem[] })
-  | (PanelBase & { type: "space"; kind: "iss"; position: IssPosition });
+    };
 
-export type PanelData = AnswerData | WeatherData | GithubData | NewsData | WikipediaData | SpaceData;
+export interface PlaceRef {
+  name: string;
+  region: string;
+  country: string;
+  lat: number;
+  lon: number;
+  timezone: string;
+}
+
+export interface AirData extends PanelBase {
+  type: "air";
+  location: PlaceRef;
+  aqi: number | null;
+  european_aqi: number | null;
+  uv_index: number | null;
+  category: string;
+  level: string;
+  advice: string;
+  pollutants: { key: string; name: string; label: string; value: number | null; unit: string }[];
+  hourly: { time: string; aqi: number | null; pm2_5: number | null }[];
+}
+
+export interface OrbitRecord {
+  OBJECT_NAME: string;
+  NORAD_CAT_ID: number | string;
+  [field: string]: unknown;
+}
+
+export interface SatellitesData extends PanelBase {
+  type: "satellites";
+  group: string;
+  group_label: string;
+  count: number;
+  observer: PlaceRef | null;
+  overhead: { name: string; norad_id: number | string; elevation: number; azimuth: number; direction: string; alt_km: number }[];
+  elements: OrbitRecord[];
+  positions: { name: string; lat: number; lon: number; alt_km: number }[];
+  computed_at: string;
+}
+
+export interface SearchData extends PanelBase {
+  type: "search";
+  query: string;
+  answer: string;
+  engine: string;
+  items: { title: string; url: string; snippet: string; source: string; published: string | null }[];
+}
+
+export interface MemoryItem {
+  id: number;
+  text: string;
+  created_at: string;
+}
+
+export interface MemoryData extends PanelBase {
+  type: "memory";
+  items: MemoryItem[];
+  note: string;
+}
+
+export type PanelData =
+  | AnswerData
+  | WeatherData
+  | GithubData
+  | NewsData
+  | WikipediaData
+  | SpaceData
+  | AirData
+  | SatellitesData
+  | SearchData
+  | MemoryData;
+
+// ---- the planning agent ---------------------------------------------------
+
+export type StepState = "pending" | "running" | "retrying" | "waiting" | "done" | "failed" | "skipped" | "denied";
+
+export interface AgentStep {
+  id: string;
+  tool: string;
+  label: string;
+  purpose: string;
+  depends_on: string[];
+  state: StepState;
+  attempts: number;
+  started_ms: number | null;
+  duration_ms: number | null;
+  args: Record<string, unknown>;
+  summary: string;
+  error: string | null;
+  source: string | null;
+  cached: boolean;
+}
+
+export interface AgentConfirm {
+  run_id: string;
+  step_id: string;
+  tool: string;
+  label: string;
+  prompt: string;
+  args: Record<string, unknown>;
+}
+
+export interface AgentRun {
+  id: string;
+  task: string;
+  status: "planning" | "running" | "done" | "error";
+  plan: { goal: string; source: string; repairs: number; plan_ms: number; steps: AgentStep[] } | null;
+  steps: Record<string, AgentStep>;
+  confirm: AgentConfirm | null;
+  answer: string;
+  timings: { plan_ms: number; execute_ms: number; answer_ms: number } | null;
+  latencyMs: number | null;
+  startedAt: number;
+  panels: PanelData[];
+  error: string | null;
+}
+
+export interface RunSummary {
+  id: string;
+  task: string;
+  status: string;
+  created_at: string;
+  step_count: number;
+  meta: { latency_ms?: number };
+}
 
 export interface Panel {
   id: string;
@@ -170,7 +266,7 @@ export interface ServerConfig {
   demo: boolean;
   sample_data: boolean;
   max_message_chars: number;
-  tools: { name: string; description: string }[];
+  tools: { name: string; description: string; read_only?: boolean }[];
 }
 
 export interface Settings {
@@ -191,6 +287,14 @@ export interface Settings {
   palmDismiss: boolean;
   showPreview: boolean;
   helpSeen: boolean;
+  /** Wave an open hand sideways to flip between pages. */
+  swipeNav: boolean;
+  /** Only act on speech that starts with "Hey Aura". */
+  wakeWord: boolean;
+  /** Earth look: photo-real satellite, city lights, or hologram wireframe. */
+  earthStyle: "satellite" | "night" | "hologram";
+  /** Whether Aura plans multi-part requests (auto), always plans, or never plans. */
+  agentMode: "auto" | "plan" | "single";
 }
 
 export interface Toast {

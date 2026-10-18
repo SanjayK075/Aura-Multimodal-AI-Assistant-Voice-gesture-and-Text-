@@ -273,3 +273,86 @@ export function ConditionIcon({ icon, size = 22 }: { icon: string; size?: number
       );
   }
 }
+
+export const ChevronLeftIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m14.5 5.5-6.5 6.5 6.5 6.5" />
+  </Svg>
+);
+export const ChevronRightIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m9.5 5.5 6.5 6.5-6.5 6.5" />
+  </Svg>
+);
+export const GridIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="4" y="4" width="6.5" height="6.5" rx="1.4" />
+    <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.4" />
+    <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.4" />
+    <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.4" />
+  </Svg>
+);
+export const HandIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M8 12V5.5a1.4 1.4 0 0 1 2.8 0V11M10.8 10.5V4a1.4 1.4 0 0 1 2.8 0v6.5M13.6 10.5V5a1.4 1.4 0 0 1 2.8 0v7.5M16.4 9.5a1.4 1.4 0 0 1 2.8 0V14a7 7 0 0 1-7 7h-.5a6 6 0 0 1-4.7-2.3L4 14.5a1.5 1.5 0 0 1 2.3-1.9L8 14.5" />
+  </Svg>
+);
+export const HomeIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 11 12 4l8 7M6 9.5V20h12V9.5M10 20v-5h4v5" />
+  </Svg>
+);
+export const GlobeIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M3.5 12h17M12 3.5c2.6 2.6 3.6 5.4 3.6 8.5s-1 5.9-3.6 8.5c-2.6-2.6-3.6-5.4-3.6-8.5S9.4 6.1 12 3.5Z" />
+  </Svg>
+);
+export const AgentIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="6" cy="6" r="2.2" />
+    <circle cx="18" cy="9" r="2.2" />
+    <circle cx="9" cy="18" r="2.2" />
+    <path d="M8 6.8 15.9 8.4M16.6 10.9 10.6 16.4M7.4 8 8.2 15.8" />
+  </Svg>
+);
+export const EarthIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="7.5" />
+    <path d="M7.2 8.4c1.6.2 2.2 1.2 3 1.4s1.4-.8 2.6-.2M14.4 13.8c1 .6 1.3 1.6 1.1 3M5.4 13.4c1.2-.2 2 .4 2.6 1.2M3 18.5c4 2 14.5-1 18-7.5" />
+  </Svg>
+);
+export const SatelliteIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="9.5" y="9.5" width="5" height="5" rx="1" transform="rotate(45 12 12)" />
+    <path d="m5.5 8 2.6 2.6M15.9 13.4 18.5 16M4 12.5l-1.5-1.5M20 13l1.5 1.5M13 4l-1.5-1.5" />
+  </Svg>
+);
+export const MapIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m3.5 6.5 5.5-2 6 2 5.5-2v13l-5.5 2-6-2-5.5 2Z" />
+    <path d="M9 4.5v13M15 6.5v13" />
+  </Svg>
+);
+export const BrainIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M9.5 4.5a3 3 0 0 0-3 3v.3a3 3 0 0 0-1.5 5.4 3 3 0 0 0 2 4.3 3 3 0 0 0 5.5-1.1V5.8a3 3 0 0 0-3-1.3ZM14.5 4.5a3 3 0 0 1 3 3v.3a3 3 0 0 1 1.5 5.4 3 3 0 0 1-2 4.3 3 3 0 0 1-3.5 1.9" />
+  </Svg>
+);
+export const SearchIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="10.5" cy="10.5" r="5.5" />
+    <path d="m15 15 5 5" />
+  </Svg>
+);
+export const CheckIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m5 12.5 4.5 4.5L19 7.5" />
+  </Svg>
+);
+export const LockIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="5.5" y="10.5" width="13" height="9" rx="2" />
+    <path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" />
+  </Svg>
+);

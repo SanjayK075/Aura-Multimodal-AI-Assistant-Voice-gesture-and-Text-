@@ -94,7 +94,11 @@ class OpenAICompatProvider:
         return out
 
     def build_body(
-        self, system: str, messages: list[ChatMessage], tools: list[ToolSpec]
+        self,
+        system: str,
+        messages: list[ChatMessage],
+        tools: list[ToolSpec],
+        tool_choice: str | None = None,
     ) -> dict[str, Any]:
         body: dict[str, Any] = {
             "model": self.model,
@@ -113,7 +117,9 @@ class OpenAICompatProvider:
                 }
                 for tool in tools
             ]
-            body["tool_choice"] = "auto"
+            body["tool_choice"] = (
+                {"type": "function", "function": {"name": tool_choice}} if tool_choice else "auto"
+            )
         body.update(self.extra_body)
         return body
 
@@ -165,9 +171,10 @@ class OpenAICompatProvider:
         messages: list[ChatMessage],
         tools: list[ToolSpec],
         context: dict[str, Any] | None = None,
+        tool_choice: str | None = None,
     ) -> AsyncIterator[LLMEvent]:
         url = f"{self.base_url}/chat/completions"
-        body = self.build_body(system, messages, tools)
+        body = self.build_body(system, messages, tools, tool_choice)
 
         text_chunks: list[str] = []
         # Tool calls arrive in fragments keyed by index; arguments are a JSON

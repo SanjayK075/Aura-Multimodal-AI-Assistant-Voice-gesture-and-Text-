@@ -7,6 +7,8 @@
  * "close that chapter of history for me" is a question for the model.
  */
 
+import { pageFromSpeech, type PageId } from "./router";
+
 export type DrawerName = "history" | "activity" | "settings" | "help";
 export type Direction = "left" | "right" | "up" | "down";
 export type QuickName = "weather" | "github" | "news" | "wikipedia" | "space";
@@ -29,7 +31,10 @@ export type VoiceCommand =
   | { type: "camera"; on: boolean }
   | { type: "stopListening" }
   | { type: "newConversation" }
-  | { type: "quick"; action: QuickName };
+  | { type: "quick"; action: QuickName }
+  | { type: "goto"; page: PageId }
+  | { type: "flip"; step: 1 | -1 }
+  | { type: "resetGlobe" };
 
 const IT = "(?:it|that|this|the panel|that panel|this panel)";
 // Words people put in front of a command: "no, I need to open the GitHub panel".
@@ -40,8 +45,12 @@ const RULES: [RegExp, (match: RegExpMatchArray) => VoiceCommand][] = [
   [/^(?:clear|close|dismiss|remove|hide) (?:all|everything|all panels|all the panels|the screen|them all)$/, () => ({ type: "closeAll" })],
   [/^clear (?:all )?(?:the )?(?:screen|panels)$/, () => ({ type: "closeAll" })],
   [new RegExp(`^(?:close|dismiss|hide|remove) ${IT}$`), () => ({ type: "close" })],
-  [/^(?:next|next page|page down|scroll down|show more)$/, () => ({ type: "next" })],
-  [/^(?:previous|previous page|page up|scroll up|back|go back)$/, () => ({ type: "previous" })],
+  [/^(?:next page|swipe left|flip page|turn the page|next screen)$/, () => ({ type: "flip", step: 1 })],
+  [/^(?:previous page|last page|swipe right|flip back|previous screen)$/, () => ({ type: "flip", step: -1 })],
+  [/^(?:next|page down|scroll down|show more)$/, () => ({ type: "next" })],
+  [/^(?:previous|page up|scroll up|back|go back)$/, () => ({ type: "previous" })],
+  [/^(?:reset|recentre|recenter|reset the (?:globe|view)|reset view)$/, () => ({ type: "resetGlobe" })],
+  [/^(?:take me )?home$|^go home$|^take me home$/, () => ({ type: "goto", page: "home" })],
   [new RegExp(`^(?:make ${IT} )?(?:bigger|larger)$|^(?:enlarge|zoom in)(?: (?:on )?${IT})?$`), () => ({ type: "bigger" })],
   [new RegExp(`^(?:make ${IT} )?smaller$|^(?:shrink|zoom out)(?: (?:of )?${IT})?$`), () => ({ type: "smaller" })],
   [
@@ -91,9 +100,22 @@ export function normalise(text: string): string {
     .trim();
 }
 
+const GOTO = /^(?:(?:go|switch|navigate) to|take me to|bring up|show me|show|open|launch)(?: me)?(?: the| my)? (.+?)(?: page| screen| tab)?$/;
+const GOTO_FORCED = /^(?:(?:go|switch|navigate) to|take me to)(?: me)?(?: the| my)? (.+?)(?: page| screen| tab)?$/;
+
+/** "go to the weather page", "take me to smart home": a page by name. */
+function parsePageCommand(phrase: string): VoiceCommand | null {
+  const withSuffix = /(?: page| screen)$/.test(phrase);
+  const match = (withSuffix ? GOTO : GOTO_FORCED).exec(phrase);
+  const page = match ? pageFromSpeech(match[1]!.trim()) : null;
+  return page ? { type: "goto", page: page.id } : null;
+}
+
 export function parseVoiceCommand(text: string): VoiceCommand | null {
   const phrase = normalise(text);
   if (!phrase) return null;
+  const pageCommand = parsePageCommand(phrase);
+  if (pageCommand) return pageCommand;
   for (const [pattern, build] of RULES) {
     const match = phrase.match(pattern);
     if (match) return build(match);
@@ -138,4 +160,24 @@ export function looksLikeRequest(text: string, confidence: number): boolean {
   if (confidence > 0 && confidence < 0.45) return false;
   if (words.length === 1) return /^(?:weather|news|headlines|time|date|help)$/.test(words[0]!);
   return true;
+}
+
+const YES = /^(?:yes|yeah|yep|yup|sure|ok|okay|go ahead|do it|confirm|confirmed|approve|approved|proceed|please do|that's fine|affirmative)(?: please)?$/;
+const NO = /^(?:no|nope|nah|don't|do not|cancel|deny|denied|stop|never mind|negative|not now|abort)(?: please)?$/;
+
+/** Answer to a yes/no question Aura asked aloud; null if it was neither. */
+export function parseYesNo(text: string): boolean | null {
+  const phrase = normalise(text);
+  if (YES.test(phrase)) return true;
+  if (NO.test(phrase)) return false;
+  return null;
+}
+
+/**
+ * The words after "Hey Aura", or null if the speech doesn't start with the wake word.
+ * "hey aura" alone gives "". Speech recognisers often hear "Aura" as "Ora" or "Aurora".
+ */
+export function stripWakeWord(text: string): string | null {
+  const match = text.trim().match(/^(?:hey|hi|hello|ok|okay)[ ,]+(?:aura|ora|aurora|aurra|auro)\b[ ,.!?]*(.*)$/i);
+  return match ? match[1]!.trim() : null;
 }

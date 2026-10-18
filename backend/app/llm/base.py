@@ -101,8 +101,14 @@ class LLMProvider(Protocol):
         messages: list[ChatMessage],
         tools: list[ToolSpec],
         context: dict[str, Any] | None = None,
+        tool_choice: str | None = None,
     ) -> AsyncIterator[LLMEvent]:
-        """Yield TextDelta events as text arrives, then exactly one TurnEnd."""
+        """Yield TextDelta events as text arrives, then exactly one TurnEnd.
+
+        tool_choice names one of the tools the model must call. That is how the
+        planner gets structured output: the "answer" is the arguments of a
+        submit_plan call, which the provider's API validates against the schema.
+        """
         ...
 
 

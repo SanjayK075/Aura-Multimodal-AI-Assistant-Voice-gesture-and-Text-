@@ -1,17 +1,29 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import { HandCursors, Toasts } from "./components/CameraPreview";
+import { ConfirmCard } from "./components/ConfirmCard";
 import { Dock } from "./components/Dock";
 import { Drawer } from "./components/drawers/Drawer";
-import { PanelLayer } from "./components/PanelLayer";
 import { Scene } from "./components/Scene";
+import { SwipeHint } from "./components/SwipeHint";
 import { TopBar } from "./components/TopBar";
-import { WelcomeHero } from "./components/WelcomeHero";
 import { api } from "./lib/api";
 import { ask, handleUtterance, stopEverything } from "./lib/assistant";
 import { globeControl } from "./lib/globeControl";
 import { handTracker } from "./lib/handTracker";
-import { isTrackingIss, useStore } from "./store/useStore";
+import { subsolarPoint } from "./lib/sun";
+import { slideDirection, useRoute, type PageId } from "./lib/router";
+import { AgentPage } from "./pages/AgentPage";
+import { CommandPage } from "./pages/CommandPage";
+import { EarthPage } from "./pages/EarthPage";
+import { GithubPage } from "./pages/GithubPage";
+import { HomePage } from "./pages/HomePage";
+import { MapPage } from "./pages/MapPage";
+import { MemoryPage } from "./pages/MemoryPage";
+import { NewsPage } from "./pages/NewsPage";
+import { SatellitesPage } from "./pages/SatellitesPage";
+import { WeatherPage } from "./pages/WeatherPage";
+import { useStore } from "./store/useStore";
 
 /** Keep trying to reach the backend. Free hosts sleep when idle and take a while to wake. */
 function useServerConnection(): void {
@@ -39,35 +51,43 @@ function useServerConnection(): void {
   }, []);
 }
 
-/** While a space-station panel is open, fetch its position every five seconds. */
-function useStationTracking(): void {
-  const panels = useStore((s) => s.panels);
-  const tracking = useMemo(() => isTrackingIss(panels), [panels]);
-  useEffect(() => {
-    if (!tracking) {
-      useStore.getState().setIss(null);
-      return;
-    }
-    const controller = new AbortController();
-    const update = () =>
-      api
-        .iss(controller.signal)
-        .then((position) => useStore.getState().setIss(position))
-        .catch(() => undefined); // keep the last known position
-    void update();
-    const timer = window.setInterval(update, 5000);
-    return () => {
-      controller.abort();
-      window.clearInterval(timer);
-    };
-  }, [tracking]);
+const PAGE_BODIES: Record<PageId, () => ReactNode> = {
+  home: () => <HomePage />,
+  command: () => <CommandPage />,
+  agent: () => <AgentPage />,
+  weather: () => <WeatherPage />,
+  earth: () => <EarthPage />,
+  satellites: () => <SatellitesPage />,
+  map: () => <MapPage />,
+  news: () => <NewsPage />,
+  github: () => <GithubPage />,
+  memory: () => <MemoryPage />,
+};
+
+/** Pages where dragging or scrolling on the globe turns it. */
+const INTERACTIVE_GLOBE: PageId[] = ["command", "earth", "home", "satellites"];
+
+/** Shows the current page. Changing page replaces it and slides the new one in from the side the hand or button moved. */
+function PageHost() {
+  const route = useRoute();
+  return (
+    <div className="page-host">
+      <div className="page" key={route.id} data-page={route.id} data-globe={route.globe} data-slide={slideDirection() === 1 ? "next" : "previous"}>
+        {PAGE_BODIES[route.id]()}
+      </div>
+    </div>
+  );
 }
 
 export function App() {
   useServerConnection();
-  useStationTracking();
+  const route = useRoute();
 
   useEffect(() => {
+    // Open on the sunlit side of the Earth, turning in from the default view.
+    const sun = subsolarPoint(new Date());
+    globeControl.faceTowards(sun.lat, sun.lon);
+
     // Show the guide once, the first time someone opens the app.
     const { settings, setDrawer, updateSettings } = useStore.getState();
     if (!settings.helpSeen) {
@@ -100,12 +120,13 @@ export function App() {
 
   return (
     <>
-      <Scene />
-      <WelcomeHero />
-      <PanelLayer />
+      <Scene active={route.globe} interactive={route.globe && INTERACTIVE_GLOBE.includes(route.id)} />
+      <PageHost />
       <TopBar />
       <Dock />
       <Drawer />
+      <ConfirmCard />
+      <SwipeHint />
       <Toasts />
       <HandCursors />
     </>

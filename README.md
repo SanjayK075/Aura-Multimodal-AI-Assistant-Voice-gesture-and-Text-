@@ -69,11 +69,16 @@ Behind the interface, a tool-using AI agent decides when to answer directly and 
 | News | [Google News RSS](https://news.google.com/) |
 | Encyclopedic summaries | [Wikipedia](https://www.wikipedia.org/) |
 | Astronomy Picture of the Day | [NASA APOD](https://apod.nasa.gov/apod/astropix.html) |
-| Upcoming launches | [Launch Library 2](https://thespacedevs.com/llapi) |
-| International Space Station position | [Where the ISS at](https://wheretheiss.at/) with a fallback source |
+| Air quality and UV | [Open-Meteo air quality](https://open-meteo.com/en/docs/air-quality-api) |
+| Satellites overhead | [CelesTrak](https://celestrak.org/) orbit data, positions computed in the browser |
+| Web search | [Tavily](https://tavily.com/) if a key is set, otherwise DuckDuckGo and Wikipedia |
 | Date and time | Backend system clock |
 
 External services can change their availability, quotas, response formats or access policies. Some tools may be temporarily unavailable without preventing the rest of Aura from working.
+
+### 🧭 Pages and the planning agent
+
+Aura has a page for each job: Command, Agent, Earth, Satellites, Weather, Map, News, GitHub and Memory. Flip between them with the arrows, by waving an open hand sideways, or by saying "go to the map". For a request with several parts, the Agent page shows the plan the model made, each step as it runs (independent steps run in parallel, failed ones retry), and asks before anything that changes data, such as forgetting a memory. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## 🏗️ Architecture
 
@@ -85,7 +90,7 @@ flowchart TD
     API --> AG[AI Agent Loop]
     AG <--> LLM[Gemini / Groq / Demo]
     AG --> TR[Tool Registry + Cache]
-    TR --> EXT[Weather · GitHub · News · Wikipedia · NASA · Launches · ISS]
+    TR --> EXT[Weather · GitHub · News · Wikipedia · NASA · Air quality · Satellites · Search]
     API <--> DB[(SQLite locally / PostgreSQL in production)]
 ```
 
@@ -305,8 +310,9 @@ Examples to try:
 
 - “What's the weather in Chennai?”
 - “Show me the NASA picture of the day.”
-- “What launches are coming up?”
-- “Where is the ISS right now?”
+- “Which satellites are above me?”
+- “Compare the weather in Pune and Delhi, then recommend one.”
+- “Remember that I prefer metric units.”
 - “Show my GitHub repositories.”
 - “Summarize the latest news about space.”
 

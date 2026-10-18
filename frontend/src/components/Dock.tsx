@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { ask, runQuickAction, stopEverything, toggleMic, type QuickAction } from "../lib/assistant";
+import { useRoute } from "../lib/router";
 import { useStore } from "../store/useStore";
 import { CameraPreview } from "./CameraPreview";
 import { GithubIcon, MicIcon, MicOffIcon, NewsIcon, SendIcon, SpaceIcon, StopIcon, WeatherIcon, WikipediaIcon } from "./icons";
@@ -21,29 +22,18 @@ function Captions() {
   if (!caption.you && !caption.interim && !caption.aura) return null;
   return (
     <div className="captions" aria-live="off">
-      <div className="captions-inner">
-        {(caption.interim || caption.you) && (
-          <p data-speaker="you" data-interim={Boolean(caption.interim)}>
-            <span className="speaker">
-              <span className="speaker-label">YOU</span>
-            </span>
-            <span className="caption-text">{caption.interim || caption.you}</span>
-          </p>
-        )}
-        {caption.aura && !caption.interim && (
-          <p data-speaker="aura" data-streaming={busy}>
-            <span className="speaker">
-              <span className="speaker-label">AURA</span>
-              <span className="speaker-wave" aria-hidden="true">
-                <span />
-                <span />
-                <span />
-              </span>
-            </span>
-            <span className="caption-text">{caption.aura}</span>
-          </p>
-        )}
-      </div>
+      {(caption.interim || caption.you) && (
+        <p data-speaker="you" data-interim={Boolean(caption.interim)}>
+          <span className="speaker">You</span>
+          {caption.interim || caption.you}
+        </p>
+      )}
+      {caption.aura && !caption.interim && (
+        <p data-speaker="aura" data-streaming={busy}>
+          <span className="speaker">Aura</span>
+          {caption.aura}
+        </p>
+      )}
     </div>
   );
 }
@@ -57,6 +47,9 @@ export function Dock() {
   const micOn = useStore((s) => s.micOn);
   const ready = useStore((s) => s.connection === "ready");
   const limit = useStore((s) => s.config?.max_message_chars ?? 2000);
+  const route = useRoute();
+  // Only the Command page has room for the shortcut buttons; other pages get a slim ask bar.
+  const slim = route.id !== "command";
 
   // "/" jumps to the question box from anywhere, as long as you aren't typing somewhere else.
   useEffect(() => {
@@ -79,9 +72,9 @@ export function Dock() {
   };
 
   return (
-    <footer className="dock">
-      <Captions />
-      {followups.length > 0 && (
+    <footer className="dock" data-slim={slim}>
+      {!slim && <Captions />}
+      {followups.length > 0 && route.id === "command" && (
         <div className="chips" aria-label="Suggested follow-ups">
           {followups.map((followup) => (
             <button type="button" className="chip" key={followup} disabled={!ready} onClick={() => void ask(followup)}>
@@ -91,14 +84,16 @@ export function Dock() {
         </div>
       )}
       <div className="dock-row">
-        <div className="quick" role="group" aria-label="Quick actions">
-          {QUICK.map(({ action, label, icon }) => (
-            <button type="button" className="quick-button" key={action} disabled={!ready} onClick={() => runQuickAction(action)}>
-              {icon}
-              <span>{label}</span>
-            </button>
-          ))}
-        </div>
+        {!slim && (
+          <div className="quick" role="group" aria-label="Quick actions">
+            {QUICK.map(({ action, label, icon }) => (
+              <button type="button" className="quick-button" key={action} disabled={!ready} onClick={() => runQuickAction(action)}>
+                {icon}
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <form className="ask" onSubmit={submit}>
           <label className="visually-hidden" htmlFor="ask-input">
             Ask a question
@@ -113,7 +108,6 @@ export function Dock() {
             autoComplete="off"
             enterKeyHint="send"
           />
-          {!text && <kbd className="ask-kbd" aria-hidden="true">/</kbd>}
           <IconButton label={micOn ? "Stop listening" : "Speak your question"} pressed={micOn} onClick={toggleMic}>
             {micOn ? <MicIcon /> : <MicOffIcon />}
           </IconButton>

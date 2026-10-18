@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { PanelData } from "../store/types";
-import { globePointsOf, isTrackingIss, useStore } from "../store/useStore";
+import { globePointsOf, useStore } from "../store/useStore";
 
 const answer = (title: string): PanelData => ({ type: "answer", title, text: "..." });
 const weather = (city: string): PanelData =>
@@ -10,14 +10,6 @@ const weather = (city: string): PanelData =>
     title: `Weather in ${city}`,
     points: [{ lat: 13, lon: 80, label: city, kind: "city" }],
   }) as PanelData;
-const station: PanelData = {
-  type: "space",
-  kind: "iss",
-  title: "ISS",
-  position: { lat: 1, lon: 2, altitude_km: 420, velocity_kmh: 27600, visibility: "daylight", timestamp: 0 },
-  points: [{ lat: 1, lon: 2, label: "ISS", kind: "iss" }],
-};
-
 function resize(width: number, height: number) {
   Object.defineProperty(window, "innerWidth", { value: width, configurable: true });
   Object.defineProperty(window, "innerHeight", { value: height, configurable: true });
@@ -145,15 +137,13 @@ describe("working with panels", () => {
     expect(state.followups).toEqual([]);
   });
 
-  it("derives globe markers and station tracking from the open panels", () => {
+  it("collects globe markers from the open panels", () => {
     const store = useStore.getState();
     store.addPanel(weather("Chennai"), "t1");
-    const id = store.addPanel(station, "t2");
-    const panels = useStore.getState().panels;
-    expect(globePointsOf(panels).map((p) => p.label)).toEqual(["Chennai"]); // the ISS is drawn separately
-    expect(isTrackingIss(panels)).toBe(true);
+    const id = store.addPanel(answer("No markers"), "t2");
+    expect(globePointsOf(useStore.getState().panels).map((p) => p.label)).toEqual(["Chennai"]);
     store.closePanel(id);
-    expect(isTrackingIss(useStore.getState().panels)).toBe(false);
+    expect(globePointsOf(useStore.getState().panels)).toHaveLength(1);
   });
 });
 

@@ -2,11 +2,17 @@
 import type {
   ActivityEntry,
   ConversationSummary,
-  IssPosition,
+  MemoryItem,
+  PanelData,
+  PlaceRef,
+  RunSummary,
   ServerConfig,
   StoredMessage,
 } from "../store/types";
+import { useStore } from "../store/useStore";
 import { createSSEParser } from "./sse";
+
+const prefsSource = () => useStore.getState();
 
 /** Empty locally (Vite proxies /api). Set VITE_API_URL when the backend is on another site. */
 const BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
@@ -73,11 +79,50 @@ export const api = {
     request<{ deleted: boolean }>(`/api/conversations/${encodeURIComponent(id)}`, { method: "DELETE" }),
   clearConversations: () => request<{ deleted: number }>("/api/conversations", { method: "DELETE" }),
   activity: () => request<{ activity: ActivityEntry[] }>("/api/activity?limit=200").then((r) => r.activity),
-  iss: (signal?: AbortSignal) => request<IssPosition>("/api/space/iss", { signal }),
+  /** Run one read-only tool directly, without the language model. */
+  tool: (name: string, params: Record<string, string | number | undefined> = {}, signal?: AbortSignal) => {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) if (value !== undefined && value !== "") query.set(key, String(value));
+    const { settings } = prefsSource();
+    query.set("units", settings.units);
+    query.set("news_region", settings.newsRegion);
+    if (settings.defaultCity) query.set("default_city", settings.defaultCity);
+    if (settings.githubUsername) query.set("github_username", settings.githubUsername);
+    return request<ToolResponse>(`/api/tools/${encodeURIComponent(name)}?${query}`, { signal });
+  },
+  geocode: (q: string) => request<PlaceRef & { name: string }>(`/api/geocode?q=${encodeURIComponent(q)}`),
+  runs: () => request<{ runs: RunSummary[] }>("/api/runs").then((r) => r.runs),
+  run: (id: string) => request<Record<string, unknown>>(`/api/runs/${encodeURIComponent(id)}`),
+  confirm: (runId: string, stepId: string, approved: boolean) =>
+    request<{ ok: boolean }>(`/api/runs/${encodeURIComponent(runId)}/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ step_id: stepId, approved }),
+    }),
+  memories: () => request<{ memories: MemoryItem[] }>("/api/memories").then((r) => r.memories),
+  addMemory: (text: string) =>
+    request<MemoryItem>("/api/memories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    }),
+  deleteMemory: (id: number) => request<{ deleted: boolean }>(`/api/memories/${id}`, { method: "DELETE" }),
+  clearMemories: () => request<{ deleted: number }>("/api/memories", { method: "DELETE" }),
 };
+
+export interface ToolResponse {
+  name: string;
+  args: Record<string, unknown>;
+  summary: string;
+  source: string;
+  source_url: string | null;
+  cached: boolean;
+  panel: PanelData | null;
+}
 
 export interface ChatBody {
   message: string;
+  mode?: "auto" | "plan" | "single";
   conversation_id: string | null;
   prefs: {
     default_city: string;

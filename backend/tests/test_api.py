@@ -12,6 +12,7 @@ from app.ratelimit import RateLimiter
 from app.tools.base import TTLCache
 
 from .conftest import make_settings, parse_sse
+from app import tools as tool_registry
 
 ME = {"X-Client-Id": "browser-aaaa-1111"}
 OTHER = {"X-Client-Id": "browser-bbbb-2222"}
@@ -38,7 +39,7 @@ def test_health_config_and_root(client):
     assert client.get("/api/health").json() == {"status": "ok"}
     config = client.get("/api/config").json()
     assert config["provider"] == "demo" and config["demo"] is True and config["sample_data"] is True
-    assert len(config["tools"]) == 9
+    assert len(config["tools"]) == len(tool_registry.ALL_TOOLS)
     assert client.get("/").json()["docs"] == "/docs"
 
 
@@ -60,7 +61,7 @@ def test_chat_streams_a_tool_backed_answer(client):
 def test_conversation_is_stored_with_panels_and_can_be_continued(client):
     first = ask(client, "weather in Tokyo")
     conversation_id = last(first, "done")["conversation_id"]
-    second = ask(client, "where is the ISS", conversation_id=conversation_id)
+    second = ask(client, "what time is it", conversation_id=conversation_id)
     assert last(second, "done")["conversation_id"] == conversation_id
 
     listing = client.get("/api/conversations", headers=ME).json()["conversations"]
@@ -73,7 +74,7 @@ def test_conversation_is_stored_with_panels_and_can_be_continued(client):
     assert reply["panels"][0]["source"] == "Open-Meteo (sample data)"
     assert reply["meta"]["tools"][0]["name"] == "get_weather"
     assert reply["meta"]["followups"] and reply["meta"]["latency_ms"] >= 0
-    assert stored["messages"][3]["panels"][0]["kind"] == "iss"
+    assert stored["messages"][3]["role"] == "assistant"
 
 
 def test_each_browser_sees_only_its_own_data(client):
@@ -102,7 +103,7 @@ def test_activity_log_records_every_tool_call(client):
 
 def test_delete_one_and_clear_all(client):
     first = last(ask(client, "top headlines"), "done")["conversation_id"]
-    ask(client, "upcoming launches")
+    ask(client, "NASA picture of the day")
     assert client.delete(f"/api/conversations/{first}", headers=ME).json() == {"deleted": True}
     assert len(client.get("/api/conversations", headers=ME).json()["conversations"]) == 1
     assert len(client.get("/api/activity", headers=ME).json()["activity"]) == 1  # its log went with it
@@ -128,12 +129,6 @@ def test_chat_is_rate_limited_per_browser():
         assert blocked.status_code == 429 and int(blocked.headers["retry-after"]) >= 1
         assert "Too many requests" in blocked.json()["message"]
         assert client.post("/api/chat", json={"message": "top headlines"}, headers=OTHER).status_code == 200
-
-
-def test_iss_endpoint(client):
-    position = client.get("/api/space/iss").json()
-    assert -52 <= position["lat"] <= 52 and -180 <= position["lon"] <= 180
-    assert position["altitude_km"] == 419.4
 
 
 def test_cors_allows_only_configured_origins():

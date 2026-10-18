@@ -11,12 +11,12 @@ from dataclasses import replace
 from typing import Any
 
 from ..llm.base import ToolSpec
-from . import clock, github, news, space, weather, wikipedia
+from . import air, clock, github, memory, news, satellites, search, space, weather, wikipedia
 from .base import Tool, ToolContext, ToolError, ToolResult, TTLCache, UserPrefs
 
 log = logging.getLogger("aura.tools")
 
-_MODULES = (weather, github, news, wikipedia, space, clock)
+_MODULES = [weather, air, github, news, search, wikipedia, space, satellites, clock, memory]
 ALL_TOOLS: list[Tool] = [tool for module in _MODULES for tool in module.TOOLS]
 REGISTRY: dict[str, Tool] = {tool.name: tool for tool in ALL_TOOLS}
 CACHE = TTLCache()
@@ -44,6 +44,8 @@ def clean_args(tool: Tool, raw: Any) -> dict[str, Any]:
         try:
             if kind == "integer":
                 value = int(float(value))
+            elif kind == "number":
+                value = float(value)
             elif kind == "string":
                 value = str(value).strip()
                 if not value:
@@ -52,6 +54,15 @@ def clean_args(tool: Tool, raw: Any) -> dict[str, Any]:
                 value = str(value).lower() in ("true", "1", "yes") if not isinstance(value, bool) else value
         except (TypeError, ValueError):
             continue
+        allowed = schema.get("enum")
+        if allowed and value not in allowed:
+            # Models sometimes paraphrase an option ("hourly" for "hour"); dropping it
+            # lets the tool's default apply rather than failing the call.
+            lowered = str(value).lower()
+            match = next((option for option in allowed if str(option).lower() == lowered), None)
+            if match is None:
+                continue
+            value = match
         cleaned[name] = value
     return cleaned
 
@@ -79,7 +90,8 @@ async def execute(
 
     offline = ctx.settings.offline_sample_data
     key = f"{name}|{json.dumps(args, sort_keys=True, default=str)}|{offline}"
-    if tool.ttl_seconds:
+    cacheable = bool(tool.ttl_seconds) and not tool.side_effects
+    if cacheable:
         hit = cache.get(key)
         if hit is not None:
             return replace(hit, cached=True), args
@@ -87,7 +99,7 @@ async def execute(
     try:
         result = await tool.handler(ctx, args)
     except ToolError:
-        stale = cache.get(key, allow_stale=True) if tool.ttl_seconds else None
+        stale = cache.get(key, allow_stale=True) if cacheable else None
         if stale is not None:
             return replace(stale, cached=True), args
         raise
@@ -97,7 +109,7 @@ async def execute(
 
     if offline and tool.uses_network:
         result = replace(result, source=f"{result.source} (sample data)")
-    if tool.ttl_seconds:
+    if cacheable:
         cache.set(key, result, tool.ttl_seconds)
     return result, args
 

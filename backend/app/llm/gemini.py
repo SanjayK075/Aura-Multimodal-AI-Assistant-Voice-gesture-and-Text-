@@ -105,7 +105,11 @@ class GeminiProvider:
         return declaration
 
     def build_body(
-        self, system: str, messages: list[ChatMessage], tools: list[ToolSpec]
+        self,
+        system: str,
+        messages: list[ChatMessage],
+        tools: list[ToolSpec],
+        tool_choice: str | None = None,
     ) -> dict[str, Any]:
         generation_config: dict[str, Any] = {"maxOutputTokens": self.max_output_tokens}
         if self.thinking_level:
@@ -118,6 +122,11 @@ class GeminiProvider:
             body["systemInstruction"] = {"parts": [{"text": system}]}
         if tools:
             body["tools"] = [{"functionDeclarations": [self._declaration(t) for t in tools]}]
+            if tool_choice:
+                # ANY with one allowed name: the model must call exactly that function.
+                body["toolConfig"] = {
+                    "functionCallingConfig": {"mode": "ANY", "allowedFunctionNames": [tool_choice]}
+                }
         return body
 
     # ---- errors -----------------------------------------------------------
@@ -161,9 +170,10 @@ class GeminiProvider:
         messages: list[ChatMessage],
         tools: list[ToolSpec],
         context: dict[str, Any] | None = None,
+        tool_choice: str | None = None,
     ) -> AsyncIterator[LLMEvent]:
         url = f"{self.base_url}/models/{self.model}:streamGenerateContent?alt=sse"
-        body = self.build_body(system, messages, tools)
+        body = self.build_body(system, messages, tools, tool_choice)
 
         text_chunks: list[str] = []
         raw_parts: list[dict[str, Any]] = []

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Union
 
 import httpx
 
@@ -26,6 +26,10 @@ class ToolContext:
     http: httpx.AsyncClient
     settings: Settings
     prefs: UserPrefs = field(default_factory=UserPrefs)
+    # Who is asking, and the services some tools need. Tools that only fetch
+    # public data ignore these; memory tools require them.
+    client_id: str = ""
+    db: Any = None
 
 
 @dataclass
@@ -42,16 +46,26 @@ class ToolResult:
 
 
 class ToolError(Exception):
-    """A tool failure with a message that is safe to show to the user and the model."""
+    """A tool failure with a message that is safe to show to the user and the model.
 
-    def __init__(self, message: str, status: int | None = None) -> None:
+    retryable is True for failures that may succeed on a second try: timeouts,
+    unreachable hosts, rate limits and server errors. A 404 or a bad argument
+    will fail the same way every time.
+    """
+
+    def __init__(self, message: str, status: int | None = None, retryable: bool | None = None) -> None:
         super().__init__(message)
         self.message = message
         self.status = status
+        if retryable is None:
+            retryable = status is not None and (status == 429 or status >= 500)
+        self.retryable = retryable
 
 
 Handler = Callable[[ToolContext, dict[str, Any]], Awaitable[ToolResult]]
 Defaults = Callable[[ToolContext, dict[str, Any]], dict[str, Any]]
+# True, False, or a rule deciding from the arguments, e.g. "unlocking the door".
+Consequential = Union[bool, Callable[[dict[str, Any]], bool]]
 
 
 @dataclass
@@ -64,6 +78,17 @@ class Tool:
     defaults: Defaults | None = None  # fills in arguments from user preferences
     status_label: str = "Working"  # shown in the UI while the tool runs
     uses_network: bool = True
+    # Changes something (saves a memory, switches a device). Such tools are never
+    # cached and can't be run from the read-only /api/tools endpoint.
+    side_effects: bool = False
+    # Needs the person's explicit go-ahead before it runs.
+    consequential: Consequential = False
+    # Wording for the confirmation question, from the arguments.
+    describe: Callable[[dict], str] | None = None
+
+    def needs_confirmation(self, args: dict[str, Any]) -> bool:
+        rule = self.consequential
+        return bool(rule(args)) if callable(rule) else bool(rule)
 
 
 async def get_json(
@@ -80,6 +105,33 @@ async def get_json(
         return response.json()
     except ValueError as exc:
         raise ToolError(f"{source} sent a reply that couldn't be read.") from exc
+
+
+async def post_json(
+    ctx: ToolContext,
+    url: str,
+    *,
+    source: str,
+    body: dict[str, Any],
+    headers: dict[str, str] | None = None,
+) -> Any:
+    """POST a JSON body and read a JSON reply, turning every failure into a ToolError."""
+    response = await _send(ctx, "POST", url, source=source, params=None, headers=headers, body=body)
+    try:
+        return response.json()
+    except ValueError as exc:
+        raise ToolError(f"{source} sent a reply that couldn't be read.") from exc
+
+
+async def get_bytes(
+    ctx: ToolContext,
+    url: str,
+    *,
+    source: str,
+    params: dict[str, Any] | None = None,
+) -> httpx.Response:
+    """GET a binary document such as an image; returns the whole response."""
+    return await _get(ctx, url, source=source, params=params, headers=None)
 
 
 async def get_text(
@@ -102,12 +154,25 @@ async def _get(
     params: dict[str, Any] | None,
     headers: dict[str, str] | None,
 ) -> httpx.Response:
+    return await _send(ctx, "GET", url, source=source, params=params, headers=headers, body=None)
+
+
+async def _send(
+    ctx: ToolContext,
+    method: str,
+    url: str,
+    *,
+    source: str,
+    params: dict[str, Any] | None,
+    headers: dict[str, str] | None,
+    body: dict[str, Any] | None,
+) -> httpx.Response:
     try:
-        response = await ctx.http.get(url, params=params, headers=headers)
+        response = await ctx.http.request(method, url, params=params, headers=headers, json=body)
     except httpx.TimeoutException as exc:
-        raise ToolError(f"{source} took too long to respond.") from exc
+        raise ToolError(f"{source} took too long to respond.", retryable=True) from exc
     except httpx.HTTPError as exc:
-        raise ToolError(f"Couldn't reach {source}.") from exc
+        raise ToolError(f"Couldn't reach {source}.", retryable=True) from exc
     status = response.status_code
     if status == 404:
         raise ToolError(f"{source} has nothing at that address.", status=404)

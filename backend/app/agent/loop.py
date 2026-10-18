@@ -33,6 +33,7 @@ from ..llm.base import (
     TurnEnd,
 )
 from ..tools.base import ToolContext, ToolError, ToolResult
+from .confirm import Confirmations, describe_action
 from .followups import suggest
 
 MAX_MODEL_RETRIES = 2
@@ -132,6 +133,8 @@ async def run_agent(
     max_steps: int = 5,
     runner: ToolRunner = tool_registry.execute,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    confirmations: Confirmations | None = None,
+    run_id: str = "",
 ) -> AsyncIterator[AgentEvent]:
     """Answer one user message. Yields AgentEvents; the last is always "done".
 
@@ -187,7 +190,34 @@ async def run_agent(
         yield AgentEvent(
             "status", {"state": "tool", "tool": turn.tool_calls[0].name, "label": first_label}
         )
-        records = await asyncio.gather(*(_run_tool(call, ctx, runner) for call in turn.tool_calls))
+        # Actions with real-world effect wait for the person's go-ahead first.
+        denied: dict[str, str] = {}
+        for call in turn.tool_calls:
+            tool = tool_registry.REGISTRY.get(call.name)
+            if tool is None:
+                continue
+            cleaned = tool_registry.clean_args(tool, call.args)
+            if not tool.needs_confirmation(cleaned):
+                continue
+            approved: bool | None = False
+            if confirmations is not None and run_id:
+                question = tool.describe(cleaned) if tool.describe else describe_action(tool.status_label, cleaned)
+                confirmations.open(run_id, call.id)
+                yield AgentEvent("confirm", {"run_id": run_id, "step_id": call.id, "tool": call.name,
+                                             "label": tool.status_label, "args": cleaned, "prompt": question})
+                approved = await confirmations.wait(run_id, call.id)
+            if not approved:
+                denied[call.id] = "The user did not approve this action, so it was not done."
+
+        async def _one(call: ToolCall) -> dict[str, Any]:
+            if call.id in denied:
+                label = getattr(tool_registry.REGISTRY.get(call.name), "status_label", "Working")
+                return {"id": call.id, "name": call.name, "label": label, "args": call.args, "ok": False,
+                        "summary": denied[call.id], "error": denied[call.id], "cached": False, "source": None,
+                        "source_url": None, "panel": None, "output": {"error": denied[call.id]}, "duration_ms": 0}
+            return await _run_tool(call, ctx, runner)
+
+        records = await asyncio.gather(*(_one(call) for call in turn.tool_calls))
         outputs = []
         for call, record in zip(turn.tool_calls, records):
             tool_runs.append(record)

@@ -10,7 +10,10 @@ import { GESTURE_CONFIG } from "../config/gestures";
 import { useStore } from "../store/useStore";
 import { GestureEngine, type GestureFrame, type Landmark } from "./gestures";
 import { globeControl } from "./globeControl";
+import { mapControl } from "./mapControl";
 import { InteractionManager, type CursorView, type InteractionHost } from "./interaction";
+import { swipePage } from "./router";
+import { SwipeDetector } from "./swipe";
 
 /** Pairs of landmark indices joined to draw the hand skeleton in the preview. */
 const BONES: [number, number][] = [
@@ -46,9 +49,10 @@ const host: InteractionHost = {
   getPanelScale: (id) => useStore.getState().panels.find((p) => p.id === id)?.scale ?? null,
   setPanelScale: (id, scale) => useStore.getState().setPanelScale(id, scale),
   closePanel: (id) => useStore.getState().closePanel(id),
-  rotateGlobe: (dx, dy) => globeControl.rotateBy(dx, dy),
-  getGlobeZoom: () => globeControl.zoom,
-  setGlobeZoom: (zoom) => globeControl.setZoom(zoom),
+  // On the Street Map page the same gestures pan and zoom the map instead of turning the globe.
+  rotateGlobe: (dx, dy) => (mapControl.active() ? mapControl.panBy(dx, dy) : globeControl.rotateBy(dx, dy)),
+  getGlobeZoom: () => (mapControl.active() ? mapControl.getZoom() : globeControl.zoom),
+  setGlobeZoom: (zoom) => (mapControl.active() ? mapControl.setZoom(zoom) : globeControl.setZoom(zoom)),
   activate: (element) => {
     if (element instanceof HTMLAnchorElement && element.href) {
       // A pinch isn't a "real" click to the browser, so it may block the new tab.
@@ -82,6 +86,7 @@ export class HandTracker {
     () => this.aspect,
   );
   readonly interaction = new InteractionManager(host, GESTURE_CONFIG);
+  readonly swipe = new SwipeDetector(() => window.innerWidth);
 
   private landmarker: HandLandmarker | null = null;
   private stream: MediaStream | null = null;
@@ -183,14 +188,38 @@ export class HandTracker {
 
   /** Run one frame of landmarks through gestures and interaction. */
   process(hands: Landmark[][], now: number): GestureFrame {
-    const { sensitivity, pinchFeel } = useStore.getState().settings;
+    const store = useStore.getState();
+    const { sensitivity, pinchFeel, swipeNav } = store.settings;
     this.engine.sensitivity = sensitivity;
     this.engine.pinchFeel = pinchFeel;
     const frame = this.engine.update(hands, now);
     this.interaction.handle(frame, now);
+    this.handleSwipe(frame, now, swipeNav);
     this.draw(hands, frame);
     this.updateMeter(frame);
     return frame;
+  }
+
+  /** Wave an open hand sideways to flip pages. */
+  private handleSwipe(frame: GestureFrame, now: number, enabled: boolean): void {
+    if (!enabled) {
+      this.swipe.reset();
+      useStore.getState().setSwipeProgress(null);
+      return;
+    }
+    const direction = this.swipe.update(frame.hands, now);
+    const store = useStore.getState();
+    if (direction) {
+      store.setSwipeProgress(null);
+      const page = swipePage(direction === "next" ? 1 : -1);
+      store.flashSwipe(direction, page.title);
+      return;
+    }
+    // Show how far a sweep has got so the person sees the gesture "catching".
+    const track = frame.hands[0];
+    store.setSwipeProgress(
+      this.swipe.progress > 0.12 && track ? { value: this.swipe.progress, direction: this.swipe.leaning } : null,
+    );
   }
 
   /**
@@ -238,7 +267,7 @@ export class HandTracker {
     const pinching = frame.hands.some((h) => h.pinching);
     for (const hand of hands) {
       if (hand.length < 21) continue;
-      context.strokeStyle = pinching ? "#ffb454" : "#9fe8ff";
+      context.strokeStyle = pinching ? "#ff7a59" : "#f2b45a";
       context.lineWidth = 2.5;
       context.beginPath();
       for (const [a, b] of BONES) {

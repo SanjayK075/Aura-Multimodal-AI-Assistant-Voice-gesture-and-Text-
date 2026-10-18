@@ -1,7 +1,4 @@
-import "@fontsource-variable/oxanium";
-import "@fontsource/ibm-plex-sans/latin-400.css";
-import "@fontsource/ibm-plex-sans/latin-500.css";
-import "@fontsource/ibm-plex-sans/latin-600.css";
+import "@fontsource-variable/bricolage-grotesque";
 import "./styles/app.css";
 
 import { StrictMode } from "react";

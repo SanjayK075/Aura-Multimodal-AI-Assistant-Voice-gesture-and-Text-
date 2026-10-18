@@ -24,7 +24,7 @@ WEATHER = ToolSpec(
     "Weather for a city.",
     {"type": "object", "properties": {"city": {"type": "string"}}},
 )
-NO_ARGS = ToolSpec("get_iss_position", "Where the ISS is.", {"type": "object", "properties": {}})
+NO_ARGS = ToolSpec("get_datetime", "The current date and time.", {"type": "object", "properties": {}})
 
 
 async def collect(provider, messages, tools=(WEATHER,), system="sys"):
@@ -377,13 +377,12 @@ async def test_openai_error_inside_stream():
         ("What's the weather in Chennai this weekend?", ("get_weather", {"city": "Chennai", "days": 7})),
         ("will it rain tomorrow", ("get_weather", {})),
         ("weather in New York right now", ("get_weather", {"city": "New York"})),
-        ("where is the ISS", ("get_iss_position", {})),
+        ("forget everything", ("forget_memory", {"all": True})),
         ("show issues on fastapi/fastapi", ("github_repo_issues", {"repo": "fastapi/fastapi"})),
         ("show my github repos", ("github_user_repos", {})),
         ("repos by torvalds sorted by stars", ("github_user_repos", {"username": "torvalds", "sort": "stars"})),
         ("latest news about artificial intelligence", ("get_news", {"topic": "artificial intelligence"})),
         ("top headlines", ("get_news", {})),
-        ("upcoming rocket launches", ("get_upcoming_launches", {})),
         ("show NASA's picture of the day", ("get_space_picture", {})),
         ("Who was Alan Turing?", ("wikipedia_summary", {"query": "Alan Turing"})),
         ("what is a black hole", ("wikipedia_summary", {"query": "black hole"})),
@@ -426,7 +425,7 @@ class Scripted:
     def __init__(self, name, *script):
         self.name, self.model, self.script, self.calls = name, f"{name}-model", list(script), 0
 
-    async def stream(self, system, messages, tools, context=None):
+    async def stream(self, system, messages, tools, context=None, tool_choice=None):
         self.calls += 1
         step = self.script.pop(0)
         if isinstance(step, tuple):  # (text streamed before failing, error)

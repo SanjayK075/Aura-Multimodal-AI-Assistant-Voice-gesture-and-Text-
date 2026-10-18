@@ -4,8 +4,10 @@ from __future__ import annotations
 from typing import Any
 
 from .base import Tool, ToolContext, ToolError, ToolResult, dig, get_json
+from .geo import geocode, pick_place, place_label
 
-GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
+__all__ = ["TOOLS", "describe", "pick_place"]
+
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 
 # WMO weather interpretation codes -> (description, icon key used by the frontend).
@@ -48,17 +50,6 @@ def describe(code: Any) -> tuple[str, str]:
         return ("Unknown", "cloud")
 
 
-def pick_place(results: list[dict[str, Any]], hint: str) -> dict[str, Any] | None:
-    """First geocoding match, or the first whose country or region matches the hint."""
-    wanted = hint.strip().lower()
-    if wanted:
-        for place in results:
-            fields = (place.get("country"), place.get("country_code"), place.get("admin1"))
-            if any(str(f or "").lower() == wanted for f in fields):
-                return place
-    return results[0] if results else None
-
-
 def _defaults(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     out = dict(args)
     if not out.get("city"):
@@ -74,29 +65,18 @@ async def _get_weather(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     if not city:
         raise ToolError("No city was named and no default city is saved. Name a city, or add yours in Settings.")
     imperial = args.get("units") == "imperial"
-
-    # The geocoder matches on the place name alone, so "Paris, France" is
-    # searched as "Paris" and the part after the comma picks among the matches.
-    name, _, hint = city.partition(",")
-    places = await get_json(
-        ctx,
-        GEOCODE_URL,
-        source="Open-Meteo",
-        params={"name": name.strip(), "count": 5, "language": "en", "format": "json"},
-    )
-    place = pick_place(places.get("results") or [], hint)
-    if not place:
-        raise ToolError(f"Couldn't find a place called '{city}'.")
+    location = await geocode(ctx, city)
 
     params: dict[str, Any] = {
-        "latitude": place["latitude"],
-        "longitude": place["longitude"],
+        "latitude": location["lat"],
+        "longitude": location["lon"],
         "current": "temperature_2m,apparent_temperature,relative_humidity_2m,"
-        "wind_speed_10m,weather_code,is_day",
+        "wind_speed_10m,weather_code,is_day,cloud_cover",
+        "hourly": "temperature_2m,precipitation_probability,cloud_cover",
         "daily": "weather_code,temperature_2m_max,temperature_2m_min,"
         "precipitation_probability_max,sunrise,sunset",
         "timezone": "auto",
-        "forecast_days": args.get("days", 3),
+        "forecast_days": max(2, args.get("days", 3)),  # two days so "the next 24 hours" always exists
     }
     if imperial:
         params["temperature_unit"] = "fahrenheit"
@@ -110,7 +90,7 @@ async def _get_weather(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     description, icon = describe(current.get("weather_code"))
 
     days = []
-    for index, date in enumerate(daily.get("time") or []):
+    for index, date in enumerate((daily.get("time") or [])[: args.get("days", 3)]):
         day_description, day_icon = describe(dig(daily, "weather_code", index))
         days.append(
             {
@@ -125,14 +105,8 @@ async def _get_weather(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
             }
         )
 
-    location = {
-        "name": place.get("name") or city,
-        "region": place.get("admin1") or "",
-        "country": place.get("country") or "",
-        "lat": place["latitude"],
-        "lon": place["longitude"],
-        "timezone": forecast.get("timezone") or place.get("timezone") or "",
-    }
+    location = {**location, "timezone": forecast.get("timezone") or location["timezone"]}
+    hourly = _next_hours(forecast.get("hourly") or {}, current.get("time"), 24)
     now = {
         "temperature": current.get("temperature_2m"),
         "feels_like": current.get("apparent_temperature"),
@@ -142,9 +116,10 @@ async def _get_weather(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
         "icon": icon,
         "is_day": bool(current.get("is_day", 1)),
         "time": current.get("time"),
+        "cloud_cover": current.get("cloud_cover"),
     }
 
-    label = ", ".join(p for p in (location["name"], location["country"]) if p)
+    label = place_label(location)
     summary = f"{label}: {_round(now['temperature'])}{temp_unit}, {description.lower()}"
     if now["feels_like"] is not None:
         summary += f", feels like {_round(now['feels_like'])}{temp_unit}"
@@ -161,7 +136,9 @@ async def _get_weather(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
         data={
             "location": label,
             "units": {"temperature": temp_unit, "wind": wind_unit},
-            "now": {k: now[k] for k in ("temperature", "feels_like", "humidity", "wind", "description")},
+            "now": {
+                k: now[k] for k in ("temperature", "feels_like", "humidity", "wind", "description", "cloud_cover")
+            },
             "forecast": [
                 {k: d[k] for k in ("date", "description", "min", "max", "rain_chance")} for d in days
             ],
@@ -177,11 +154,32 @@ async def _get_weather(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
             "units": {"temperature": temp_unit, "wind": wind_unit},
             "current": now,
             "daily": days,
+            "hourly": hourly,
             "points": [
                 {"lat": location["lat"], "lon": location["lon"], "label": location["name"], "kind": "city"}
             ],
         },
     )
+
+
+def _next_hours(hourly: dict[str, Any], now: Any, count: int) -> list[dict[str, Any]]:
+    """The hourly series starting at the current hour, for the 24-hour chart."""
+    times = hourly.get("time") or []
+    start = 0
+    if isinstance(now, str) and len(now) >= 13:
+        hour = now[:13]  # "2026-10-16T21"
+        start = next((i for i, t in enumerate(times) if str(t)[:13] >= hour), 0)
+    out = []
+    for index in range(start, min(len(times), start + count)):
+        out.append(
+            {
+                "time": times[index],
+                "temperature": dig(hourly, "temperature_2m", index),
+                "rain_chance": dig(hourly, "precipitation_probability", index),
+                "cloud_cover": dig(hourly, "cloud_cover", index),
+            }
+        )
+    return out
 
 
 def _round(value: Any) -> str:

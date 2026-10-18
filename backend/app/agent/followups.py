@@ -60,14 +60,18 @@ def suggest(tool_runs: list[dict[str, Any]]) -> list[str]:
             title = panel.get("title")
             if title:
                 ideas.append(f"Latest news about {title}")
-        elif name in ("get_space_picture", "get_upcoming_launches", "get_iss_position"):
-            for tool, question in (
-                ("get_iss_position", "Where is the space station right now?"),
-                ("get_upcoming_launches", "Upcoming rocket launches"),
-                ("get_space_picture", "NASA's picture of the day"),
-            ):
-                if tool not in used:
-                    ideas.append(question)
+        elif name == "get_space_picture":
+            ideas.extend(["Which satellites are above me right now?", "Tell me about the Hubble telescope"])
+
+        elif name == "get_air_quality":
+            city = (panel.get("location") or {}).get("name") or args.get("city") or "there"
+            ideas.extend([f"Weather in {city}", f"Is it good to run outside in {city}?"])
+        elif name == "get_satellites":
+            ideas.extend(["Which satellites are above me right now?", "Show the Starlink satellites"] if not args.get("city") else ["Show the space stations"])
+        elif name == "web_search":
+            ideas.extend(["Summarise the top result", "Latest news on this"])
+        elif name in ("remember", "list_memories", "forget_memory"):
+            ideas.extend(["What do you remember about me?", "Compare the weather in two cities"])
 
     if not tool_runs:
         ideas.extend(["Explain that more simply", "Give me an example"])

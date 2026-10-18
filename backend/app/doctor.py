@@ -29,9 +29,9 @@ _SAMPLE_CALLS = [
     ("get_news", {"topic": "technology"}),
     ("wikipedia_summary", {"query": "Alan Turing"}),
     ("get_space_picture", {}),
-    ("get_upcoming_launches", {"limit": 3}),
-    ("get_iss_position", {}),
     ("get_datetime", {"timezone": "Asia/Kolkata"}),
+    ("get_air_quality", {"city": "Chennai"}),
+    ("get_satellites", {"group": "stations", "city": "Chennai"}),
 ]
 
 
@@ -90,6 +90,7 @@ async def main() -> int:
     print(f"GROQ_API_KEY        = {'set' if settings.groq_api_key else 'not set'}   model: {settings.groq_model}")
     print(f"GITHUB_TOKEN        = {'set' if settings.github_token else 'not set (60 requests/hour)'}")
     print(f"NASA_API_KEY        = {'shared DEMO_KEY (30 requests/hour)' if settings.nasa_api_key == 'DEMO_KEY' else 'set'}")
+    print(f"TAVILY_API_KEY      = {'set' if settings.tavily_api_key else 'not set (web search uses DuckDuckGo/Wikipedia)'}")
     print(f"OFFLINE_SAMPLE_DATA = {settings.offline_sample_data}")
     print(f"DATABASE_URL        = {settings.sqlalchemy_url.split('@')[-1]}")
     print()

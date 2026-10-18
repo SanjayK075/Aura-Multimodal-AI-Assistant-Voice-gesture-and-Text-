@@ -51,8 +51,12 @@ class Settings(BaseSettings):
     nasa_api_key: str = "DEMO_KEY"
     # Serve bundled sample responses instead of calling the real APIs.
     offline_sample_data: bool = False
+    confirm_timeout_seconds: float = 90.0
     http_timeout_seconds: float = 12.0
     contact_email: str = ""  # added to the User-Agent, as Wikipedia asks
+    # Optional: a Tavily key gives web_search full web results (free: 1,000 searches a month).
+    # Without one, search combines DuckDuckGo instant answers, Google News and Wikipedia.
+    tavily_api_key: str = ""
 
     # --- Storage, security ---------------------------------------------
     database_url: str = "sqlite:///./aura.db"
@@ -66,7 +70,7 @@ class Settings(BaseSettings):
         return value.strip().lower()
 
     @field_validator(
-        "gemini_api_key", "groq_api_key", "openai_compat_api_key", "github_token", "nasa_api_key"
+        "gemini_api_key", "groq_api_key", "openai_compat_api_key", "github_token", "nasa_api_key", "tavily_api_key"
     )
     @classmethod
     def _strip(cls, value: str) -> str:

@@ -17,8 +17,8 @@
   {"id": "wiki-topic", "category": "wikipedia", "question": "What does Wikipedia say about the Chola dynasty?", "expect_tools": ["wikipedia_summary"], "answer_any": ["Chola"]},
   {"id": "wiki-featured", "category": "wikipedia", "question": "Show today's featured Wikipedia article", "expect_tools": ["wikipedia_summary"]},
 
-  {"id": "space-iss", "category": "space", "question": "Where is the International Space Station right now?", "expect_tools": ["get_iss_position"]},
-  {"id": "space-launches", "category": "space", "question": "What are the next rocket launches?", "expect_tools": ["get_upcoming_launches"]},
+  {"id": "space-satellites", "category": "space", "question": "Which satellites are above Chennai right now?", "expect_tools": ["get_satellites"]},
+  {"id": "air-delhi", "category": "air", "question": "How is the air quality in Delhi?", "expect_tools": ["get_air_quality"]},
   {"id": "space-picture", "category": "space", "question": "Show NASA's astronomy picture of the day", "expect_tools": ["get_space_picture"]},
 
   {"id": "time-here", "category": "time", "question": "What time is it?", "expect_tools": ["get_datetime"]},

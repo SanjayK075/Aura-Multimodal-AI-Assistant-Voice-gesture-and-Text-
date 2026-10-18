@@ -1,6 +1,8 @@
 """Shapes of the JSON bodies the API accepts."""
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -21,6 +23,8 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1)
     conversation_id: str | None = Field(default=None, max_length=36)
     prefs: Prefs = Field(default_factory=Prefs)
+    mode: Literal["auto", "plan", "single"] = "auto"
+
 
     @field_validator("message")
     @classmethod
@@ -29,3 +33,12 @@ class ChatRequest(BaseModel):
         if not value:
             raise ValueError("message must not be blank")
         return value
+
+
+class ConfirmRequest(BaseModel):
+    step_id: str = Field(min_length=1, max_length=80)
+    approved: bool
+
+
+class MemoryIn(BaseModel):
+    text: str = Field(min_length=1, max_length=500)

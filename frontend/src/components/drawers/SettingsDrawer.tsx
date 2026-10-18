@@ -170,6 +170,51 @@ export function SettingsDrawer() {
         )}
       </DrawerSection>
 
+      <DrawerSection title="Agent and pages">
+        <Choice
+          label="Multi-part requests"
+          value={settings.agentMode}
+          onChange={set("agentMode")}
+          options={[
+            { value: "auto", label: "Plan when needed" },
+            { value: "plan", label: "Always plan" },
+            { value: "single", label: "Never plan" },
+          ]}
+        />
+        <p className="field-hint">
+          Planning splits a request like "compare Pune and Delhi, then recommend one" into steps you can watch on the
+          Agent page.
+        </p>
+        <Choice
+          label="Earth look"
+          value={settings.earthStyle}
+          onChange={set("earthStyle")}
+          options={[
+            { value: "satellite", label: "Satellite" },
+            { value: "night", label: "City lights" },
+            { value: "hologram", label: "Hologram" },
+          ]}
+        />
+        <Choice
+          label="Wave to change page"
+          value={settings.swipeNav}
+          onChange={set("swipeNav")}
+          options={[
+            { value: true, label: "On" },
+            { value: false, label: "Off" },
+          ]}
+        />
+        <Choice
+          label="Wake word"
+          value={settings.wakeWord}
+          onChange={set("wakeWord")}
+          options={[
+            { value: false, label: "Off" },
+            { value: true, label: "On" },
+          ]}
+        />
+      </DrawerSection>
+
       <DrawerSection title="Hand control">
         <Choice
           label="Reach"
