@@ -1,184 +1,404 @@
-# Aura
+<div align="center">
 
-An AI assistant that runs in the browser and is controlled by voice, hand gestures or a mouse. You ask a question; an LLM agent decides which real API to call, fetches live data, and answers aloud while the result opens as a floating panel beside a 3D globe.
+# 🌌 Aura — Multimodal AI Assistant
 
-It is a full-stack project: a React and three.js frontend, a FastAPI backend with a tool-calling agent loop, two interchangeable LLM providers, seven external data sources, a database, tests and an evaluation script. Everything runs on free tiers.
+### **Talk. Gesture. Type. Explore.**
 
-## What it does
+An AI assistant that brings voice, hand gestures, text, live information, and an interactive 3D globe into one browser-based workspace.
 
-- **Answers anything.** General questions go straight to the model. Questions that need live data make the agent call a tool first.
-- **Uses real services.** Weather (Open-Meteo), GitHub, news (Google News), Wikipedia, NASA's picture of the day, upcoming rocket launches (Launch Library 2) and the live position of the International Space Station.
-- **Three ways to control it, freely mixed.** Speak, type, click, or pinch in the air. Every button works with all of them.
-- **Shows its work.** The activity log lists every tool the agent called, with arguments, result and timing.
-- **Keeps working when a free quota runs out.** With both a Gemini and a Groq key set, it switches provider automatically.
+[![Launch Aura](https://img.shields.io/badge/Launch%20Aura-Live%20Demo-7C3AED?style=for-the-badge&logo=vercel&logoColor=white)](https://aura-multimodal-ai-assistant-voice.vercel.app/)
+[![Backend Health](https://img.shields.io/website?url=https%3A%2F%2Faura-backend-s0mm.onrender.com%2Fapi%2Fhealth&label=Backend%20health&style=for-the-badge)](https://aura-backend-s0mm.onrender.com/api/health)
+[![Frontend](https://img.shields.io/badge/Frontend-Vercel-black?style=for-the-badge&logo=vercel)](https://aura-multimodal-ai-assistant-voice.vercel.app/)
+[![Backend](https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://aura-backend-s0mm.onrender.com/docs)
 
-## What you need
+[**Try the live app**](https://aura-multimodal-ai-assistant-voice.vercel.app/) · [API health](https://aura-backend-s0mm.onrender.com/api/health) · [Interactive API docs](https://aura-backend-s0mm.onrender.com/docs) · [Architecture](docs/ARCHITECTURE.md)
 
-- Windows, macOS or Linux
-- [Python](https://www.python.org/downloads/) 3.11 or newer (tested on 3.13). On Windows, tick **Add python.exe to PATH** in the installer.
-- [Node.js](https://nodejs.org/) 22 LTS or newer
-- Chrome or Edge, a webcam and a microphone
-- A free API key from [Google AI Studio](https://aistudio.google.com/apikey) or [Groq](https://console.groq.com/keys). Without one the app still runs in demo mode, where it can fetch live data but can't answer general questions.
+</div>
 
-## Set up
+---
 
-### Windows, the short way
+## ✨ What is Aura?
 
-1. Double-click `setup.bat` and wait for it to finish.
-2. Open `backend\.env` in Notepad and paste your key after `GEMINI_API_KEY=` or `GROQ_API_KEY=`. Save.
-3. Double-click `start.bat`. Two windows open (backend and frontend) and the app opens at http://localhost:5173.
+Aura is a full-stack, multimodal AI assistant designed for more natural interaction. Ask a question by typing or speaking, use your webcam to control the interface with hand gestures, and explore results through floating information panels around a live 3D globe.
 
-### By hand (any system)
+Behind the interface, a tool-using AI agent decides when to answer directly and when to retrieve live information from external data sources. Responses stream back to the browser, relevant panels open as tools finish, and Aura can read its answer aloud.
 
-Backend, in one terminal:
+> **The idea:** make an AI assistant feel less like a text box and more like an interactive workspace.
 
+## 🚀 Try Aura online
+
+| Service | Link | What it does |
+|---|---|---|
+| **Live website** | [aura-multimodal-ai-assistant-voice.vercel.app](https://aura-multimodal-ai-assistant-voice.vercel.app/) | React interface, 3D globe, voice and gesture controls |
+| **Backend health** | [ `/api/health` ](https://aura-backend-s0mm.onrender.com/api/health) | Confirms that the API is responding |
+| **Backend configuration** | [ `/api/config` ](https://aura-backend-s0mm.onrender.com/api/config) | Shows the active provider and available tools/configuration status |
+| **API documentation** | [ `/docs` ](https://aura-backend-s0mm.onrender.com/docs) | Interactive FastAPI / OpenAPI documentation |
+| **Source code** | [GitHub repository](https://github.com/SanjayK075/Aura-Multimodal-AI-Assistant-Voice-gesture-and-Text-) | Application code, tests, documentation and deployment configuration |
+
+*Note:* the hosted backend may take a little time to wake after inactivity on a free hosting plan. A cold start can make the first request slower than later requests.
+
+## 🧩 Highlights
+
+### 🗣️ Three ways to interact
+
+- **Speech:** ask questions using browser speech recognition and hear answers through speech synthesis.
+- **Hand gestures:** use a webcam and MediaPipe hand tracking to point, pinch, drag, resize, navigate and control interface elements.
+- **Text and mouse:** type questions, click controls, drag panels and use standard keyboard/mouse interactions.
+- **Mix modes naturally:** use whichever input feels most convenient for the task.
+
+### 🌍 Live 3D workspace
+
+- Interactive Three.js globe with location-aware results and space-related visuals.
+- Floating panels for answers and tool results.
+- Move, resize, pin, navigate or close panels using supported input modes.
+- Conversation history and an activity log showing tool calls, results, sources and timing.
+
+### 🧠 Tool-using AI agent
+
+- An agent loop chooses tools when a question needs current or external information.
+- Streaming responses let the interface show progress and results as they arrive.
+- Gemini and Groq provider support, with automatic provider selection/fallback when configured.
+- Demo mode remains available without an LLM key; live-data tools may still work, but general model answers require a configured provider.
+
+### 🔎 Connected data sources
+
+| Capability | Source |
+|---|---|
+| Weather and forecast | [Open-Meteo](https://open-meteo.com/) |
+| GitHub users, repositories and issues | [GitHub REST API](https://docs.github.com/en/rest) |
+| News | [Google News RSS](https://news.google.com/) |
+| Encyclopedic summaries | [Wikipedia](https://www.wikipedia.org/) |
+| Astronomy Picture of the Day | [NASA APOD](https://apod.nasa.gov/apod/astropix.html) |
+| Upcoming launches | [Launch Library 2](https://thespacedevs.com/llapi) |
+| International Space Station position | [Where the ISS at](https://wheretheiss.at/) with a fallback source |
+| Date and time | Backend system clock |
+
+External services can change their availability, quotas, response formats or access policies. Some tools may be temporarily unavailable without preventing the rest of Aura from working.
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart TD
+    U[User] -->|Voice / Gesture / Text| FE[React + TypeScript + Vite]
+    FE <--> G[Three.js 3D Globe + Floating Panels]
+    FE -->|HTTP + Server-Sent Events| API[FastAPI Backend]
+    API --> AG[AI Agent Loop]
+    AG <--> LLM[Gemini / Groq / Demo]
+    AG --> TR[Tool Registry + Cache]
+    TR --> EXT[Weather · GitHub · News · Wikipedia · NASA · Launches · ISS]
+    API <--> DB[(SQLite locally / PostgreSQL in production)]
 ```
+
+### Stack at a glance
+
+| Layer | Technologies |
+|---|---|
+| Frontend | React, TypeScript, Vite, Zustand |
+| 3D and interaction | Three.js, React Three Fiber, MediaPipe Tasks Vision |
+| Speech | Browser speech recognition and speech synthesis APIs |
+| Backend | Python, FastAPI, Uvicorn, HTTPX |
+| AI providers | Google Gemini, Groq, optional OpenAI-compatible endpoints |
+| Data and persistence | External REST/RSS APIs, SQLAlchemy, SQLite locally, PostgreSQL in production |
+| Tests | Pytest, Vitest, Testing Library / JSDOM |
+| Deployment | Vercel (frontend), Render (backend), Neon (PostgreSQL) |
+
+## 🖥️ Run locally
+
+### Requirements
+
+- **Python 3.11+** (Python 3.13 is supported by the provided Docker image)
+- **Node.js 20.19+** and npm
+- Chrome or Edge recommended for speech recognition and camera-based hand tracking
+- A webcam and microphone for gesture and speech input; text and mouse controls work without them
+- A key from [Google AI Studio](https://aistudio.google.com/apikey) or [Groq](https://console.groq.com/keys) for model-powered answers. Without a key, Aura can run in demo mode.
+
+### Option A — Windows quick start
+
+From the project root, run `setup.bat`, add a model key to `backend\.env`, then run `start.bat`.
+
+If the scripts aren't suitable for your setup, use the manual instructions below.
+
+### Option B — Manual setup
+
+#### 1. Configure and start the backend
+
+Open a terminal in the project root:
+
+**Windows PowerShell**
+
+```powershell
 cd backend
 python -m venv .venv
-.venv\Scripts\activate            (macOS/Linux: source .venv/bin/activate)
-pip install -r requirements-dev.txt
-copy .env.example .env            (macOS/Linux: cp .env.example .env)
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements-dev.txt
+Copy-Item .env.example .env
 ```
 
-Edit `backend/.env` and add your key, then:
+**macOS / Linux**
 
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+cp .env.example .env
 ```
+
+Edit `backend/.env` and add at least one model provider key. Then, from the `backend` directory with the virtual environment activated, start the API:
+
+```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
-Frontend, in a second terminal:
+The API runs at `http://localhost:8000`; interactive docs are at `http://localhost:8000/docs`.
 
-```
+#### 2. Start the frontend
+
+Open a **second terminal** at the repository root:
+
+```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-Open http://localhost:5173 in Chrome.
+Open [http://localhost:5173](http://localhost:5173). During local development, Vite proxies `/api` requests to `http://localhost:8000`.
 
-### Check the setup
+#### 3. Check your configuration
 
-With the backend's virtual environment active:
+With the backend virtual environment activated and the terminal in `backend`:
 
-```
-cd backend
+```bash
 python -m app.doctor
 ```
 
-This makes one real tool-calling round trip with each model you have a key for, and calls every data source once. Each line says `[ OK ]` or `[FAIL]` with the reason. If a model name has been retired it lists the ones your key can use; put one in `.env` as `GEMINI_MODEL` or `GROQ_MODEL`. Run this first whenever something stops working.
+The diagnostic checks configured model providers and the data-source integrations, reporting successes and failures. It can make real API requests, so provider keys and network access affect the results.
 
-## Using it
+## 🔐 Environment variables
 
-Allow the camera and microphone when Chrome asks. The camera button in the top bar turns hand control on; the microphone button turns listening on.
+Copy `backend/.env.example` to `backend/.env`. The application reads backend settings from environment variables or that local `.env` file.
 
-| To do this | Voice | Hands | Mouse |
-|---|---|---|---|
-| Ask a question | Say it | Pinch the mic button, then say it | Type it and press Enter |
-| Run a quick action | "Show the weather", "Open the GitHub panel" | Pinch the button, or rest the cursor on it for a second | Click it |
-| Move a panel | "Move it left" | Pinch on it and move | Drag its title bar |
-| Resize a panel | "Make it bigger" | Pinch with both hands, pull apart | Drag its corner, or scroll over the title |
-| Close a panel | "Close that" | Hold an open palm over it | Click the close button |
-| Page through a panel | "Next", "Go back" | Pinch the arrows | Click the arrows, or scroll |
-| Keep a panel | "Pin that" | Pinch the pin | Click the pin |
-| Clear the screen | "Clear all" | Pinch the clear button | Click it |
-| Spin the globe | | Pinch empty space and move | Drag the background |
-| Stop a reply | "Stop" or "Enough", even while Aura is talking | Pinch the stop button | Click it, or press Esc |
+| Variable | Required? | Purpose |
+|---|---|---|
+| `LLM_PROVIDER` | No (`auto` by default) | `auto`, `gemini`, `groq`, `openai_compat` or `demo` |
+| `GEMINI_API_KEY` | Optional, recommended | Gemini credentials from [Google AI Studio](https://aistudio.google.com/apikey) |
+| `GEMINI_MODEL` | No | Gemini model identifier configured for this project |
+| `GEMINI_THINKING_LEVEL` | No | Optional Gemini thinking level |
+| `GROQ_API_KEY` | Optional | Groq credentials from [Groq Console](https://console.groq.com/keys) |
+| `GROQ_MODEL` | No | Groq model identifier configured for this project |
+| `GROQ_REASONING_EFFORT` | No | Optional Groq reasoning effort |
+| `OPENAI_COMPAT_BASE_URL` | No | Optional base URL for an OpenAI-compatible API or local server |
+| `OPENAI_COMPAT_API_KEY` | No | Optional key for that compatible provider |
+| `OPENAI_COMPAT_MODEL` | No | Model name for the compatible provider |
+| `GITHUB_TOKEN` | No | Optional token to increase GitHub API rate limits |
+| `NASA_API_KEY` | No (`DEMO_KEY`) | NASA APOD API key; a personal key can have different quotas |
+| `CONTACT_EMAIL` | No | Optional contact in the Wikipedia request User-Agent |
+| `OFFLINE_SAMPLE_DATA` | No (`false`) | Use bundled sample data instead of live data when supported |
+| `DATABASE_URL` | No locally | Defaults to SQLite; use a PostgreSQL connection URL in production |
+| `CORS_ORIGINS` | No | Comma-separated browser origins allowed to call the API |
+| `RATE_LIMIT_PER_MINUTE` | No (`20`) | Per-client request limit used by the backend |
+| `LLM_MAX_OUTPUT_TOKENS` | No (`4096`) | Maximum model output-token budget |
 
-New answers take the place of old ones beside the globe. Pin a panel to keep it.
+A minimal local configuration can look like this:
 
-The Help button in the top bar shows this list inside the app. Set your city and GitHub username in Settings so "the weather" and "my repositories" work.
-
-### Getting hand control to behave
-
-- Sit so your hand is inside the dashed box in the camera preview. That box maps to the whole screen.
-- The strip under the camera preview shows what the pinch detector sees, for example `open 0.62 · click below 0.30`. Pinch your fingers and it should change to `PINCH` with a lower number. If it never does, set Settings → **Pinch sensitivity** to Easy. If it says PINCH while your hand is relaxed, choose Firm.
-- A click lands when you release the pinch on the button or just beside it, so a small wobble doesn't matter.
-- **Point and hold** is the easy alternative: rest the cursor on a button for a second, a ring fills, and it clicks. No pinch needed. Turn it off in Settings if it fires when you don't want it to.
-- Light should fall on your hand. A bright window behind you makes tracking drop out.
-- The first time you turn the camera on, the browser downloads the hand-tracking model (about 8 MB) from Google. To serve it from the app instead, run `npm run fetch-model` in `frontend` once.
-- Hand tracking runs entirely in the browser; camera video is never uploaded. MediaPipe, the library that does the tracking, sends anonymous usage statistics to Google ([its privacy notice](https://goo.gle/mediapipe-privacy)).
-- Settings has **Reach** (how far your hand must move to cross the screen) and a switch for the open-palm gesture.
-- Every threshold is in one commented file: `frontend/src/config/gestures.ts`. If clicks trigger too easily lower `pinchOn`; if they are hard to trigger raise it. If the cursor shakes lower `smoothingMinCutoff`; if it lags raise `smoothingBeta`.
-
-Voice input uses the browser's speech recognition, which exists in Chrome and Edge and needs an internet connection. In other browsers the app still works by typing.
-
-## Tests
-
-```
-cd backend
-python -m pytest            159 tests: tools, both LLM providers, the agent loop, the API
-
-cd frontend
-npm test                    162 tests: gestures, pointer logic, voice commands, parsing, layout
-npm run build               type-checks and builds
+```dotenv
+LLM_PROVIDER=auto
+GEMINI_API_KEY=your_gemini_key_here
+GROQ_API_KEY=
+GITHUB_TOKEN=
+NASA_API_KEY=DEMO_KEY
+DATABASE_URL=sqlite:///./aura.db
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+RATE_LIMIT_PER_MINUTE=20
 ```
 
-No test needs an API key or the network. The backend tests answer every outside call from a fake transport or from `tests/fake_llm.py`, a small server that speaks Gemini's and Groq's wire formats over real HTTP. The gesture tests feed hand positions built from numbers, so no camera is involved.
+The values above are **placeholders/examples**. Use your own credentials in your local `.env` or your hosting provider's secret settings.
 
-## Measuring it
+### Frontend environment
 
-`eval/run_eval.py` sends 30 fixed questions through the running backend and reports task success, tool-choice accuracy and response times. Start the backend with a real key, then:
+For production deployments where the frontend and backend are hosted on different domains, set `VITE_API_URL` in the frontend hosting dashboard to the backend's **base URL** (no trailing slash). For this deployment:
 
-```
-cd backend
-python ..\eval\run_eval.py
-```
-
-It takes about five minutes (it pauses between questions to stay inside free rate limits) and writes `eval/results/latest.md`. Those are your numbers for a resume line such as: *"...X% task success on a 30-question test set, Y s median response."*
-
-## Project layout
-
-```
-backend/
-  app/
-    main.py            HTTP routes; streams replies as server-sent events
-    config.py          every setting, read from .env
-    agent/loop.py      the agent loop: model call, run tools, repeat
-    agent/prompts.py   the system prompt
-    llm/               provider layer: gemini.py, openai_compat.py (Groq), demo.py, fallback
-    tools/             one file per data source, plus the registry
-    db.py              conversations, messages and the tool-call log (SQLite or Postgres)
-    offline.py         sample responses for running without internet
-    doctor.py          setup checker
-  tests/
-frontend/
-  src/
-    lib/gestures.ts      hand landmarks -> cursor, pinch, open palm
-    lib/interaction.ts   makes a hand behave like a pointer
-    lib/handTracker.ts   webcam and MediaPipe
-    lib/assistant.ts     sends questions, applies the streamed reply, speech, voice commands
-    components/          the globe (Scene.tsx), panels, dock, drawers
-    store/               application state (Zustand) and panel layout
-    config/gestures.ts   every hand-tracking threshold
-eval/                    the 30-question evaluation
-docs/                    architecture, design walkthrough, deployment
+```dotenv
+VITE_API_URL=https://aura-backend-s0mm.onrender.com
 ```
 
-## More documentation
+Locally, you can leave `VITE_API_URL` unset because Vite proxies `/api` to the local backend.
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how the parts fit together, the API, the data model
-- [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md): why each part is built the way it is
-- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md): putting it online for free
+## ☁️ Deployment
 
-## Troubleshooting
+The live deployment uses a split architecture:
 
-| Symptom | Cause and fix |
+- **Frontend:** [Vercel](https://vercel.com/) — [open Aura](https://aura-multimodal-ai-assistant-voice.vercel.app/)
+- **Backend:** [Render](https://render.com/) — [health check](https://aura-backend-s0mm.onrender.com/api/health)
+- **Database:** [Neon](https://neon.tech/) PostgreSQL
+
+### Frontend on Vercel
+
+| Setting | Value |
 |---|---|
-| Top bar says "Server not responding" | The backend isn't running, or crashed on start. Look at its terminal window. A wrong `LLM_PROVIDER` or a missing key for the chosen provider is reported there. |
-| "Demo mode" badge | No API key was found. Check `backend/.env` (not `.env.example`) and restart the backend. |
-| "...has no model called..." | The provider retired that model. Run `python -m app.doctor` and set `GEMINI_MODEL` or `GROQ_MODEL` to one it lists. |
-| "...free quota is used up" | You hit the free rate limit. Wait, or add the other provider's key so it can fall back. |
-| Camera or microphone "blocked" | Click the icon at the left of the address bar and allow them, then switch the camera or mic on again. |
-| Pinching doesn't click anything | Watch the readout under the camera preview (see above). Try Pinch sensitivity: Easy, or use point and hold: rest the cursor on the button for a second. |
-| Aura keeps talking when I say stop | Say just "stop" or "enough", on its own. Hands-free mode must be on (Settings → Microphone → Stays on); in "One question per press" mode the mic is off while Aura talks, so press the stop button or Esc. |
-| "Open the GitHub panel" opens Settings | The GitHub button needs your username. Add it in Settings. |
-| Hand cursor jumps or vanishes | Improve the light on your hand and keep it inside the dashed box. See the tuning notes above. |
-| It hears itself or random speech | Use Settings, Microphone, "One question per press". |
-| A link pinched by hand doesn't open | The browser blocked the pop-up. Allow pop-ups for the site, or click links with the mouse. |
-| GitHub says it is rate limiting | Unauthenticated GitHub allows 60 requests an hour. Add a token as `GITHUB_TOKEN` in `.env`. |
-| NASA picture fails | The shared `DEMO_KEY` allows 30 requests an hour. Get a free key at api.nasa.gov and set `NASA_API_KEY`. |
-| Port already in use | Another program is on 8000 or 5173. Close it, or change the port in the command and in `frontend/vite.config.ts`. |
+| Root directory | `frontend` |
+| Framework preset | Vite |
+| Build command | `npm run build` |
+| Output directory | `dist` |
+| Environment variable | `VITE_API_URL=https://aura-backend-s0mm.onrender.com` |
 
-## Credits
+### Backend on Render
 
-Weather data by [Open-Meteo](https://open-meteo.com/). Launch data by [The Space Devs](https://thespacedevs.com/). ISS position by [Where the ISS at?](https://wheretheiss.at/). Article summaries from [Wikipedia](https://www.wikipedia.org/). Astronomy pictures from [NASA APOD](https://apod.nasa.gov/). Hand tracking by [MediaPipe](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker). Coastlines from [Natural Earth](https://www.naturalearthdata.com/) via world-atlas.
+The root-level [`render.yaml`](render.yaml) defines the Blueprint for the FastAPI Docker service. It uses `backend/Dockerfile` and health-checks `/api/health`.
+
+Set the following in Render's environment settings. Never store secret values in `render.yaml` or commit them to Git:
+
+| Variable | Configuration |
+|---|---|
+| `LLM_PROVIDER` | `auto` |
+| `GEMINI_API_KEY` | Secret value in Render dashboard |
+| `GROQ_API_KEY` | Optional secret value in Render dashboard |
+| `GITHUB_TOKEN` | Optional secret value in Render dashboard |
+| `NASA_API_KEY` | `DEMO_KEY` by default |
+| `DATABASE_URL` | PostgreSQL connection string from Neon |
+| `CORS_ORIGINS` | `http://localhost:5173,https://aura-multimodal-ai-assistant-voice.vercel.app` |
+
+If you use a different Vercel domain, replace the production origin with your actual site URL. Each origin should contain only the scheme, host and optional port—no path or trailing slash.
+
+### Database
+
+Local development defaults to SQLite (`aura.db`). The hosted backend uses PostgreSQL so conversation history can persist independently from the container filesystem. Keep your database connection string private and configure it as `DATABASE_URL` in Render.
+
+For a complete deployment walkthrough, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
+## 🧪 Tests and evaluation
+
+Run the backend tests from `backend` with its virtual environment active:
+
+```bash
+python -m pytest
+```
+
+Run the frontend tests and production build from `frontend`:
+
+```bash
+npm test
+npm run build
+```
+
+The test suites cover agent and provider behavior, API handling, gestures, pointer interactions, voice-command parsing and interface state. They are designed to test behavior without needing a real webcam or making live model calls for every test.
+
+### Optional: run the evaluation
+
+The repository includes a 30-question evaluation script that reports task success, tool-selection accuracy and response timing. Start the backend with a configured model provider, then run from the `backend` directory:
+
+```bash
+python ../eval/run_eval.py
+```
+
+The script makes model/API calls and may take several minutes depending on provider latency and rate limits. Results are written under `eval/results/`.
+
+## 🎛️ Using Aura
+
+1. Open Aura in Chrome or Edge.
+2. Allow camera and microphone access when prompted if you want hand and speech controls.
+3. Set your city and GitHub username in **Settings** to personalize weather and repository requests.
+4. Type or speak a question, or enable the camera for hand-based interaction.
+5. Pin panels you want to keep; use the activity log to inspect tool calls and sources.
+
+Examples to try:
+
+- “What's the weather in Chennai?”
+- “Show me the NASA picture of the day.”
+- “What launches are coming up?”
+- “Where is the ISS right now?”
+- “Show my GitHub repositories.”
+- “Summarize the latest news about space.”
+
+The app includes a Help panel with supported voice commands and gesture tips.
+
+## 🛠️ Troubleshooting
+
+| Symptom | Things to check |
+|---|---|
+| **Backend not responding** | Open the [health endpoint](https://aura-backend-s0mm.onrender.com/api/health); check Render logs and wait for a sleeping service to wake. Locally, make sure Uvicorn is running on port `8000`. |
+| **CORS error in the browser** | Ensure `CORS_ORIGINS` contains the exact Vercel origin and local origin separated by commas; no trailing slash. Save/redeploy the Render service after changing it. |
+| **Chat works locally but not on Vercel** | Check the Vercel `VITE_API_URL` value and redeploy after changing it—Vite embeds it at build time. |
+| **Aura is in demo mode** | Add a valid `GEMINI_API_KEY` or `GROQ_API_KEY` to the backend environment, then restart/redeploy. Confirm the active provider at `/api/config`. |
+| **Model/key/rate-limit error** | Check the selected model name and provider quota. Run `python -m app.doctor` locally for diagnostics. |
+| **Conversation history disappears** | Confirm production `DATABASE_URL` points to your hosted PostgreSQL database, not the local SQLite default. |
+| **Microphone doesn't work** | Use a supported browser, allow microphone permission, and check the browser's speech-recognition support and internet connection. |
+| **Camera/gesture control doesn't work** | Use HTTPS or localhost, allow camera access, improve lighting, keep your hand inside the preview and tune **Pinch sensitivity** in Settings. |
+| **Pinches trigger too easily or not at all** | Adjust the Pinch sensitivity setting. The gesture thresholds are maintained in `frontend/src/config/gestures.ts`. |
+
+## 🔒 Security and privacy notes
+
+- **Never commit secrets.** Keep backend keys, database URLs and tokens in `backend/.env` locally or in the hosting provider's secret manager. Commit only `.env.example` with empty/example values.
+- The frontend only needs the public backend URL. **Do not put Gemini, Groq, GitHub or database secrets in `VITE_*` variables**; frontend environment values are bundled into browser-accessible code.
+- Hand tracking is performed in the browser with MediaPipe; the camera stream is used to compute hand landmarks for interaction rather than being sent to Aura's backend. MediaPipe may collect usage diagnostics as described in its [privacy notice](https://goo.gle/mediapipe-privacy).
+- Speech recognition and synthesis depend on the browser's implementation and permissions. Review your browser's own privacy behavior when enabling voice features.
+- The public demo has no user-account system. The per-client rate limit is a basic safeguard, not a robust abuse-prevention boundary; use provider quotas and avoid credentials tied to paid usage you cannot monitor.
+
+## 📚 Documentation
+
+- [Architecture and API details](docs/ARCHITECTURE.md)
+- [Design and code walkthrough](docs/WALKTHROUGH.md)
+- [Deployment guide](docs/DEPLOYMENT.md)
+- [Gesture thresholds](frontend/src/config/gestures.ts)
+- [Backend configuration template](backend/.env.example)
+- [Frontend configuration template](frontend/.env.example)
+
+## 🗂️ Project structure
+
+```text
+.
+├── backend/
+│   ├── app/
+│   │   ├── agent/          # Agent loop, prompts and follow-up logic
+│   │   ├── llm/            # Gemini, Groq/OpenAI-compatible and demo providers
+│   │   ├── tools/          # Data-source integrations and tool registry
+│   │   ├── main.py         # FastAPI routes and streaming responses
+│   │   ├── config.py       # Environment-driven settings
+│   │   ├── db.py           # Conversation, message and tool-call storage
+│   │   └── doctor.py       # Configuration and integration diagnostics
+│   ├── tests/              # Backend tests
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── .env.example
+├── frontend/
+│   ├── src/
+│   │   ├── components/     # Globe, panels, controls and camera preview
+│   │   ├── lib/            # API, streaming, speech and gesture logic
+│   │   ├── config/         # Gesture tuning
+│   │   └── store/          # App state and layout
+│   ├── scripts/            # MediaPipe asset helpers
+│   ├── package.json
+│   └── .env.example
+├── docs/                   # Architecture, walkthrough and deployment docs
+├── eval/                   # Question set and evaluation runner
+├── render.yaml             # Render Blueprint
+├── setup.bat               # Windows setup helper
+└── start.bat               # Windows launch helper
+```
+
+## 🤝 Contributing
+
+Bug reports, usability improvements, documentation fixes and thoughtful feature ideas are welcome.
+
+1. Fork the repository.
+2. Create a focused branch for your change.
+3. Run the relevant backend/frontend tests and production build.
+4. Open a pull request describing the change and how you tested it.
+
+Please do not include credentials, `.env` files, database dumps, virtual environments or generated dependencies in pull requests.
+
+## 📄 License
+
+No license file is currently included. Unless a license is added to the repository, normal copyright applies and reuse rights are not granted by default.
+
+---
+
+<div align="center">
+
+**Built by [Sanjay K](https://github.com/SanjayK075)**
+
+[🌐 Live Demo](https://aura-multimodal-ai-assistant-voice.vercel.app/) · [💻 Repository](https://github.com/SanjayK075/Aura-Multimodal-AI-Assistant-Voice-gesture-and-Text-) · [⚙️ API Docs](https://aura-backend-s0mm.onrender.com/docs)
+
+*Give Aura a try: ask a question, explore the globe, and experiment with voice or hand gestures.*
+
+</div>
