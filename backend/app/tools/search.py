@@ -4,6 +4,8 @@ a Google News search for anything recent, and Wikipedia's search."""
 from __future__ import annotations
 
 import asyncio
+import re
+from html import unescape
 from typing import Any
 from urllib.parse import quote
 
@@ -14,6 +16,11 @@ TAVILY_URL = "https://api.tavily.com/search"
 DDG_URL = "https://api.duckduckgo.com/"
 NEWS_SEARCH_URL = "https://news.google.com/rss/search"
 WIKI_SEARCH_URL = "https://en.wikipedia.org/w/api.php"
+
+
+def _plain(text: Any) -> str:
+    """Wikipedia and DuckDuckGo send HTML: drop tags and decode entities like &quot; and &#039;."""
+    return " ".join(unescape(re.sub(r"<[^>]+>", "", str(text or ""))).split())
 
 
 def _defaults(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -59,7 +66,7 @@ async def _duckduckgo(ctx: ToolContext, query: str) -> tuple[str | None, list[di
             {
                 "title": reply.get("Heading") or query,
                 "url": reply["AbstractURL"],
-                "snippet": clip(reply["AbstractText"], 320),
+                "snippet": clip(_plain(reply["AbstractText"]), 320),
                 "source": reply.get("AbstractSource") or "DuckDuckGo",
                 "published": None,
             }
@@ -73,7 +80,7 @@ async def _duckduckgo(ctx: ToolContext, query: str) -> tuple[str | None, list[di
                 {
                     "title": clip(topic["Text"].split(" - ")[0], 120),
                     "url": topic["FirstURL"],
-                    "snippet": clip(topic["Text"], 240),
+                    "snippet": clip(_plain(topic["Text"]), 240),
                     "source": "DuckDuckGo",
                     "published": None,
                 }
@@ -107,7 +114,7 @@ async def _wikipedia(ctx: ToolContext, query: str) -> list[dict[str, Any]]:
         title = str(hit.get("title") or "")
         if not title:
             continue
-        snippet = str(hit.get("snippet") or "").replace('<span class="searchmatch">', "").replace("</span>", "")
+        snippet = _plain(hit.get("snippet"))
         out.append(
             {
                 "title": title,

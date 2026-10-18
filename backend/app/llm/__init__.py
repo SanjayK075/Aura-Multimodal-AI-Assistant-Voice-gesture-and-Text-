@@ -1,6 +1,7 @@
 """Chooses and builds the LLM provider from settings."""
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any, AsyncIterator, Callable
 
@@ -11,6 +12,8 @@ from .base import ChatMessage, LLMError, LLMEvent, LLMProvider, ToolSpec
 from .demo import DemoProvider
 from .gemini import GeminiProvider
 from .openai_compat import GROQ_BASE_URL, OpenAICompatProvider
+
+log = logging.getLogger("aura.llm")
 
 # Failures where trying a different provider can help. A blocked or malformed
 # request would fail the same way anywhere.
@@ -65,6 +68,7 @@ class FallbackProvider:
         tool_choice: str | None = None,
     ) -> AsyncIterator[LLMEvent]:
         order = self._order()
+        failures: list[tuple[str, LLMError]] = []
         for index, provider in enumerate(order):
             emitted = False
             try:
@@ -74,11 +78,17 @@ class FallbackProvider:
                     yield event
                 return
             except LLMError as error:
+                log.warning("LLM provider %s failed (%s, status %s): %s", provider.name, error.kind, error.status, error)
+                failures.append((provider.name, error))
                 if error.kind in _FALLBACK_KINDS:
                     rest = error.retry_after if error.retry_after else self.DEFAULT_REST_SECONDS
                     self._resting_until[provider.name] = self._clock() + rest
                 is_last = index == len(order) - 1
                 if emitted or is_last or error.kind not in _FALLBACK_KINDS:
+                    if len(failures) > 1 and not emitted:
+                        # Say what every provider said, not just the last one tried.
+                        detail = " ".join(f"[{name}] {err}" for name, err in failures)
+                        raise LLMError(detail, kind=error.kind, status=error.status, retry_after=error.retry_after) from error
                     raise
 
 
@@ -122,6 +132,16 @@ def _openai_compat(settings: Settings, client: httpx.AsyncClient) -> OpenAICompa
     )
 
 
+def _keys(value: str) -> list[str]:
+    """GEMINI_API_KEY may hold several keys separated by commas, each from its own
+    Google account, so each has its own free quota."""
+    return [k.strip() for k in (value or "").split(",") if k.strip()]
+
+
+def _per_key(settings: Settings, client: httpx.AsyncClient, field: str, make) -> list[LLMProvider]:
+    return [make(settings.model_copy(update={field: key}), client) for key in _keys(getattr(settings, field))]
+
+
 def build_provider(settings: Settings, client: httpx.AsyncClient) -> LLMProvider:
     """Return the provider named by LLM_PROVIDER.
 
@@ -135,11 +155,13 @@ def build_provider(settings: Settings, client: httpx.AsyncClient) -> LLMProvider
     if choice == "gemini":
         if not settings.gemini_api_key:
             raise ValueError("LLM_PROVIDER=gemini but GEMINI_API_KEY is empty in backend/.env")
-        return _gemini(settings, client)
+        found = _per_key(settings, client, "gemini_api_key", _gemini)
+        return found[0] if len(found) == 1 else FallbackProvider(found)
     if choice == "groq":
         if not settings.groq_api_key:
             raise ValueError("LLM_PROVIDER=groq but GROQ_API_KEY is empty in backend/.env")
-        return _groq(settings, client)
+        found = _per_key(settings, client, "groq_api_key", _groq)
+        return found[0] if len(found) == 1 else FallbackProvider(found)
     if choice == "openai_compat":
         if not (settings.openai_compat_base_url and settings.openai_compat_model):
             raise ValueError(
@@ -152,10 +174,8 @@ def build_provider(settings: Settings, client: httpx.AsyncClient) -> LLMProvider
         )
 
     available: list[LLMProvider] = []
-    if settings.gemini_api_key:
-        available.append(_gemini(settings, client))
-    if settings.groq_api_key:
-        available.append(_groq(settings, client))
+    available.extend(_per_key(settings, client, "gemini_api_key", _gemini))
+    available.extend(_per_key(settings, client, "groq_api_key", _groq))
     if settings.openai_compat_base_url and settings.openai_compat_model:
         available.append(_openai_compat(settings, client))
     if not available:

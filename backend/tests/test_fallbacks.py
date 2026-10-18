@@ -79,3 +79,41 @@ async def test_space_picture_keeps_nasas_error_when_the_backup_fails_too():
     with pytest.raises(ToolError) as caught:
         await run("get_space_picture", {}, make_ctx(handler))
     assert caught.value.status == 500
+
+
+def test_several_gemini_keys_become_a_fallback_chain():
+    from app.llm import FallbackProvider, build_provider
+    from .conftest import make_settings
+
+    client = httpx.AsyncClient()
+    provider = build_provider(make_settings(llm_provider="auto", gemini_api_key="k1, k2", groq_api_key="g1"), client)
+    assert isinstance(provider, FallbackProvider) and len(provider.providers) == 3
+
+
+def test_search_text_is_plain():
+    from app.tools.search import _plain
+
+    assert _plain('Spain&#039;s <span class="searchmatch">La Liga</span> &quot;table&quot;') == "Spain's La Liga \"table\""
+
+
+async def test_when_every_provider_fails_the_error_names_each_one():
+    from app.llm import FallbackProvider
+    from app.llm.base import LLMError
+
+    class Broken:
+        def __init__(self, name, error):
+            self.name, self.model, self._error = name, "m", error
+
+        async def stream(self, *args, **kwargs):
+            raise self._error
+            yield  # pragma: no cover
+
+    chain = FallbackProvider([
+        Broken("groq", LLMError("Groq rejected the API key.", kind="auth", status=401)),
+        Broken("gemini", LLMError("Gemini's free quota is used up.", kind="rate_limit", status=429)),
+    ])
+    with pytest.raises(LLMError) as caught:
+        async for _ in chain.stream("s", [], []):
+            pass
+    assert "[groq] Groq rejected the API key." in str(caught.value) and "[gemini]" in str(caught.value)
+    assert caught.value.kind == "rate_limit"
