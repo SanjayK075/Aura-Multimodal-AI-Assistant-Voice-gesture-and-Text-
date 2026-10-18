@@ -1,4 +1,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
+// MapLibre runs its drawing work in a Web Worker. The bundler does not copy that file by itself,
+// so import it as a URL and tell MapLibre where it is.
+import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 
 import type { Map as MapLibreMap, Marker } from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
@@ -72,6 +75,7 @@ export function MapPage() {
       try {
         const maplibre = await import("maplibre-gl");
         if (disposed || !container.current) return;
+        maplibre.setWorkerUrl(workerUrl);
         map = new maplibre.Map({
           container: container.current,
           style: styleFor("hybrid"),
@@ -86,7 +90,8 @@ export function MapPage() {
         map.on("load", () => setStatus("Drag to move, scroll or pinch to zoom."));
         map.on("error", (event) => {
           const message = String((event as unknown as { error?: { message?: string } }).error?.message ?? "");
-          if (/tile|fetch|network|Failed/i.test(message)) setStatus("Some map tiles couldn't load. Check your connection.");
+          if (/worker/i.test(message)) setFailed("The map's background worker couldn't start. Reload the page.");
+          else if (/tile|fetch|network|Failed/i.test(message)) setStatus("Some map tiles couldn't load. Check your connection.");
         });
         mapRef.current = map;
         mapControl.register({
