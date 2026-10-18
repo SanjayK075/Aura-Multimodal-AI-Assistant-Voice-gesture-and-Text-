@@ -1,0 +1,41 @@
+[
+  {"id": "weather-now", "category": "weather", "question": "What's the weather in Chennai right now?", "expect_tools": ["get_weather"], "answer_any": ["Chennai"]},
+  {"id": "weather-rain", "category": "weather", "question": "Will it rain in London tomorrow?", "expect_tools": ["get_weather"]},
+  {"id": "weather-week", "category": "weather", "question": "Give me a 7 day forecast for Tokyo", "expect_tools": ["get_weather"], "answer_any": ["Tokyo"]},
+  {"id": "weather-default", "category": "weather", "question": "Do I need an umbrella today?", "expect_tools": ["get_weather"]},
+
+  {"id": "github-repos", "category": "github", "question": "Show the repositories of the GitHub user torvalds", "expect_tools": ["github_user_repos"]},
+  {"id": "github-issues", "category": "github", "question": "What are the open issues in fastapi/fastapi?", "expect_tools": ["github_repo_issues"]},
+  {"id": "github-mine", "category": "github", "question": "Show my GitHub repos", "expect_tools": ["github_user_repos"]},
+  {"id": "github-closed", "category": "github", "question": "List the closed issues in pallets/flask", "expect_tools": ["github_repo_issues"]},
+
+  {"id": "news-topic", "category": "news", "question": "What's the latest news about artificial intelligence?", "expect_tools": ["get_news"]},
+  {"id": "news-top", "category": "news", "question": "Show me today's top headlines", "expect_tools": ["get_news"]},
+  {"id": "news-isro", "category": "news", "question": "Any news on ISRO?", "expect_tools": ["get_news"]},
+
+  {"id": "wiki-person", "category": "wikipedia", "question": "Look up Alan Turing on Wikipedia", "expect_tools": ["wikipedia_summary"], "answer_any": ["Turing"]},
+  {"id": "wiki-topic", "category": "wikipedia", "question": "What does Wikipedia say about the Chola dynasty?", "expect_tools": ["wikipedia_summary"], "answer_any": ["Chola"]},
+  {"id": "wiki-featured", "category": "wikipedia", "question": "Show today's featured Wikipedia article", "expect_tools": ["wikipedia_summary"]},
+
+  {"id": "space-iss", "category": "space", "question": "Where is the International Space Station right now?", "expect_tools": ["get_iss_position"]},
+  {"id": "space-launches", "category": "space", "question": "What are the next rocket launches?", "expect_tools": ["get_upcoming_launches"]},
+  {"id": "space-picture", "category": "space", "question": "Show NASA's astronomy picture of the day", "expect_tools": ["get_space_picture"]},
+
+  {"id": "time-here", "category": "time", "question": "What time is it?", "expect_tools": ["get_datetime"]},
+  {"id": "time-there", "category": "time", "question": "What's the time in New York right now?", "expect_tools": ["get_datetime"]},
+
+  {"id": "know-hashmap", "category": "knowledge", "question": "Explain what a hash map is in two sentences", "expect_no_tools": true, "answer_any": ["key"]},
+  {"id": "know-tcp", "category": "knowledge", "question": "What is the difference between TCP and UDP?", "expect_no_tools": true, "answer_any": ["reliab", "connection"]},
+  {"id": "know-code", "category": "knowledge", "question": "Write a Python function that reverses a string", "expect_no_tools": true, "answer_any": ["def "]},
+  {"id": "know-maths", "category": "knowledge", "question": "What is 17 times 23?", "expect_no_tools": true, "answer_any": ["391"]},
+  {"id": "know-simple", "category": "knowledge", "question": "Explain recursion to a ten year old", "expect_no_tools": true},
+
+  {"id": "multi-chain", "category": "multi-step", "question": "Find the most recently updated repository of the GitHub user torvalds, then list its open issues", "expect_tools": ["github_user_repos", "github_repo_issues"]},
+  {"id": "multi-compare", "category": "multi-step", "question": "Compare the weather in Mumbai and Delhi", "expect_tools": ["get_weather"], "min_tool_calls": 2, "answer_any": ["Mumbai"]},
+
+  {"id": "follow-weather", "category": "follow-up", "after": "weather-now", "question": "And what about Bengaluru?", "expect_tools": ["get_weather"], "answer_any": ["Bengaluru", "Bangalore"]},
+  {"id": "follow-news", "category": "follow-up", "after": "news-topic", "question": "Summarise the first of those headlines in one sentence", "expect_no_tools": true},
+
+  {"id": "error-city", "category": "errors", "question": "What's the weather in Qwertyuiopville?", "expect_tools": ["get_weather"], "expect_tool_failure": true},
+  {"id": "error-repo", "category": "errors", "question": "Show the issues in thisownerdoesnotexist12345/norepo", "expect_tools": ["github_repo_issues"], "expect_tool_failure": true}
+]

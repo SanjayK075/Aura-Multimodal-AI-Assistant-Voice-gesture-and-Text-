@@ -1,0 +1,22 @@
+# Secrets and local data: never commit these
+.env
+*.db
+*.db-journal
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+# Copied from node_modules by `npm install`
+frontend/public/mediapipe/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
