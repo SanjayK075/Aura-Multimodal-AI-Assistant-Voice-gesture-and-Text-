@@ -18,6 +18,7 @@ the headline in one to three sentences. Do not read lists out item by item.
 - Keep spoken answers short, like a conversation: usually two to four sentences, under 60 words. \
 For a bigger topic, give the key point and offer to go deeper. Go longer only when the user asks \
 for depth or for code. A short bullet list is fine when it helps.
+- Write maths in plain text, for example a^2 + b^2 or x squared, never LaTeX such as \\( \\) or $$, because the screen and the voice cannot render it.
 - When the user asks for code, put it in a fenced code block and keep the surrounding talk short.
 
 Using tools

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime, timezone
 from typing import Any
 
 from .base import Tool, ToolContext, ToolError, ToolResult, clip, get_json
@@ -23,6 +24,11 @@ async def _space_picture(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
     try:
         apod = await get_json(ctx, APOD_URL, source="NASA", params=params)
     except ToolError as error:
+        if error.retryable:
+            try:
+                return await _wikimedia_picture(ctx, date)
+            except ToolError:
+                pass  # report NASA's own error below
         if error.status == 429:
             raise ToolError(
                 "NASA's shared demo key has hit its limit. A free personal key from api.nasa.gov "
@@ -58,6 +64,45 @@ async def _space_picture(ctx: ToolContext, args: dict[str, Any]) -> ToolResult:
             "is_video": is_video,
             "video_url": apod.get("url") if is_video else None,
             "credit": " ".join(str(apod.get("copyright") or "").split()),
+        },
+    )
+
+
+async def _wikimedia_picture(ctx: ToolContext, date: str) -> ToolResult:
+    """Backup when NASA's API is down or rate limited: Wikimedia's picture of the day."""
+    day = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    feed = await get_json(
+        ctx,
+        f"https://en.wikipedia.org/api/rest_v1/feed/featured/{day.replace('-', '/')}",
+        source="Wikimedia",
+        headers={"User-Agent": "Aura/3 (https://github.com)"},
+    )
+    picture = feed.get("image") if isinstance(feed, dict) else None
+    if not isinstance(picture, dict):
+        raise ToolError("Wikimedia had no picture for that day.")
+    thumb = (picture.get("thumbnail") or {}).get("source")
+    full = (picture.get("image") or {}).get("source") or thumb
+    if not thumb:
+        raise ToolError("Wikimedia had no picture for that day.")
+    title = str(picture.get("title") or "Picture of the day").removeprefix("File:").rsplit(".", 1)[0].replace("_", " ")
+    text = " ".join(str((picture.get("description") or {}).get("text") or "").split())
+    summary = f"NASA's picture service is unavailable, so here is Wikimedia's picture of the day: {title}. {clip(text, 200)}"
+    return ToolResult(
+        data={"title": title, "date": day, "explanation": clip(text, 900), "summary": summary},
+        summary=summary,
+        source="Wikimedia Commons",
+        source_url="https://commons.wikimedia.org/wiki/Commons:Picture_of_the_day",
+        panel={
+            "type": "space",
+            "kind": "apod",
+            "title": title,
+            "date": day,
+            "explanation": text or "Wikimedia Commons picture of the day. NASA's picture of the day is unavailable right now.",
+            "image": thumb,
+            "hd_image": full,
+            "is_video": False,
+            "video_url": None,
+            "credit": " ".join(str((picture.get("artist") or {}).get("text") or "").split()),
         },
     )
 
